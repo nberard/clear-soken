@@ -53,55 +53,28 @@ Prérequis : Node 22, Rust stable.
 Un seul **Caddy** écoute sur les ports 80/443 du serveur. Il obtient les certificats HTTPS et envoie chaque domaine au bon conteneur :
 
 ```
-Internet ──► Caddy (80/443) ─┬─ clearsoken.touplitoui.me ──► conteneur clearsoken:8080
-                             └─ bitwarden.touplitoui.me  ──► Bitwarden (port 8081)
+Internet ──► Caddy (80/443) ──► clearsoken.touplitoui.me ──► conteneur clearsoken:8080
 ```
 
 ### 1. DNS
 
-Chez ton registrar, crée deux enregistrements **A** vers l'IP du serveur :
-`clearsoken.touplitoui.me` et `bitwarden.touplitoui.me`.
+Chez ton registrar, crée un enregistrement **A** `clearsoken.touplitoui.me` vers l'IP du serveur.
 
-### 2. Libérer les ports 80/443 de Bitwarden
+### 2. Ports 80/443 libres
 
-Aujourd'hui Bitwarden occupe probablement 80/443. Repère quelle version tourne :
-
-```bash
-docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
-```
-
-**Bitwarden officiel** (images `bitwarden/*`, installé avec `bitwarden.sh`) : dans `bwdata/config.yml`, mets
-
-```yaml
-http_port: 8081
-https_port: 8443
-ssl: false
-```
-
-puis `./bitwarden.sh rebuild && ./bitwarden.sh restart`. Laisse `url: https://bitwarden.touplitoui.me` tel quel.
-Dans `proxy/.env` : `BITWARDEN_UPSTREAM=host.docker.internal:8081`.
-
-**Vaultwarden** (image `vaultwarden/server`) : retire sa section `ports:` et branche-le sur le réseau du proxy :
-
-```bash
-docker network connect proxy vaultwarden   # (après l'étape 3, nom du conteneur à adapter)
-```
-
-Dans `proxy/.env` : `BITWARDEN_UPSTREAM=vaultwarden:80`.
-
-> Fais un export de ton coffre (Bitwarden → Outils → Exporter) avant de toucher à sa configuration.
+Rien d'autre ne doit écouter sur 80/443 : `sudo ss -tlnp | grep -E ':(80|443) '` ne doit rien afficher.
 
 ### 3. Lancer le proxy puis l'appli
 
 ```bash
 cd /home/nico/dev
 git clone https://github.com/nberard/clear-soken && cd clear-soken
-cp proxy/.env.example proxy/.env && nano proxy/.env   # email + choix BITWARDEN_UPSTREAM
+cp proxy/.env.example proxy/.env && nano proxy/.env   # ton email
 make proxy     # Caddy (crée aussi le réseau Docker "proxy")
 make deploy    # build + démarrage de Clear Soken (quelques minutes la 1re fois)
 ```
 
-Vérifie : https://clearsoken.touplitoui.me et https://bitwarden.touplitoui.me (le certificat peut prendre une minute).
+Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minute).
 
 ### Au quotidien
 
