@@ -1,0 +1,7 @@
+node_modules/
+frontend/build/
+frontend/.svelte-kit/
+backend/target/
+qr-*.png
+.env
+.DS_Store

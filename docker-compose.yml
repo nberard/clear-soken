@@ -1,0 +1,27 @@
+# Déploiement sur le serveur OVH : `DOMAIN=clearsoken.fr docker compose up -d --build`
+# Caddy gère le HTTPS automatiquement (Let's Encrypt). Ouvrir les ports 80 et 443.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./backend/data:/app/data:ro   # l'annuaire peut être modifié sans rebuild (redémarrer app)
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:

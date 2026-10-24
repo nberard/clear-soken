@@ -1,0 +1,17 @@
+{
+	"name": "Clear Soken",
+	"short_name": "Clear Soken",
+	"description": "Prendre soin de soi pendant l'hospitalisation, et préparer le retour vers les autres.",
+	"lang": "fr",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#f6f1ea",
+	"theme_color": "#f6f1ea",
+	"icons": [
+		{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+		{ "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+		{ "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+		{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+	]
+}
