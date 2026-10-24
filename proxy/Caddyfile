@@ -1,0 +1,21 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# --- Clear Soken ---
+{$CLEARSOKEN_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	# Pas de journal d'accès : on ne garde pas les adresses IP des patients.
+	log {
+		output discard
+	}
+	reverse_proxy clearsoken:8080
+}
+
+# --- Bitwarden / Vaultwarden ---
+{$BITWARDEN_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy {$BITWARDEN_UPSTREAM}
+}
