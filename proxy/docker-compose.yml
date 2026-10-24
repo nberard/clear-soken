@@ -10,8 +10,6 @@ services:
       - "443:443"
       - "443:443/udp"   # HTTP/3
     env_file: .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # pour joindre un service publié sur l'hôte (Bitwarden officiel)
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data        # certificats : à ne pas supprimer
