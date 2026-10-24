@@ -32,7 +32,8 @@ Conséquence : la V1 n'a pas besoin d'un hébergeur certifié **HDS**. Dès que 
 frontend/   SvelteKit 3 + TypeScript, rendu statique (adapter-static), PWA
 backend/    Rust (Axum) : sert la PWA + /api/health, /api/resources
   data/resources.json   annuaire (modifiable sans recompiler)
-Dockerfile, docker-compose.yml, Caddyfile   déploiement (HTTPS automatique)
+Dockerfile, docker-compose.yml   image et conteneur de l'appli
+proxy/      reverse proxy Caddy commun au serveur (HTTPS auto, plusieurs domaines)
 ```
 
 **Pour le design :** les couleurs, typos et arrondis sont tous dans `frontend/src/lib/theme.css` (thèmes clair et sombre). Les icônes de l'appli sont dans `frontend/static/icons/`. Pour régénérer les PNG : `node scripts/render-icons.cjs`.
@@ -49,9 +50,74 @@ Prérequis : Node 22, Rust stable.
 
 ## Déployer sur le serveur OVH
 
-1. Faire pointer le domaine (ex. `clearsoken.fr`) vers l'IP du serveur, et ouvrir les ports 80 et 443.
-2. Sur le serveur : `git clone …`, puis `make deploy DOMAIN=clearsoken.fr` (Docker requis).
-3. Générer le QR code à afficher : `make qr DOMAIN=clearsoken.fr`.
+Un seul **Caddy** écoute sur les ports 80/443 du serveur. Il obtient les certificats HTTPS et envoie chaque domaine au bon conteneur :
+
+```
+Internet ──► Caddy (80/443) ─┬─ clearsoken.touplitoui.me ──► conteneur clearsoken:8080
+                             └─ bitwarden.touplitoui.me  ──► Bitwarden (port 8081)
+```
+
+### 1. DNS
+
+Chez ton registrar, crée deux enregistrements **A** vers l'IP du serveur :
+`clearsoken.touplitoui.me` et `bitwarden.touplitoui.me`.
+
+### 2. Libérer les ports 80/443 de Bitwarden
+
+Aujourd'hui Bitwarden occupe probablement 80/443. Repère quelle version tourne :
+
+```bash
+docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
+```
+
+**Bitwarden officiel** (images `bitwarden/*`, installé avec `bitwarden.sh`) : dans `bwdata/config.yml`, mets
+
+```yaml
+http_port: 8081
+https_port: 8443
+ssl: false
+```
+
+puis `./bitwarden.sh rebuild && ./bitwarden.sh restart`. Laisse `url: https://bitwarden.touplitoui.me` tel quel.
+Dans `proxy/.env` : `BITWARDEN_UPSTREAM=host.docker.internal:8081`.
+
+**Vaultwarden** (image `vaultwarden/server`) : retire sa section `ports:` et branche-le sur le réseau du proxy :
+
+```bash
+docker network connect proxy vaultwarden   # (après l'étape 3, nom du conteneur à adapter)
+```
+
+Dans `proxy/.env` : `BITWARDEN_UPSTREAM=vaultwarden:80`.
+
+> Fais un export de ton coffre (Bitwarden → Outils → Exporter) avant de toucher à sa configuration.
+
+### 3. Lancer le proxy puis l'appli
+
+```bash
+cd /home/nico/dev
+git clone https://github.com/nberard/clear-soken && cd clear-soken
+cp proxy/.env.example proxy/.env && nano proxy/.env   # email + choix BITWARDEN_UPSTREAM
+make proxy     # Caddy (crée aussi le réseau Docker "proxy")
+make deploy    # build + démarrage de Clear Soken (quelques minutes la 1re fois)
+```
+
+Vérifie : https://clearsoken.touplitoui.me et https://bitwarden.touplitoui.me (le certificat peut prendre une minute).
+
+### Au quotidien
+
+| Commande | Effet |
+|---|---|
+| `make update` | `git pull` + rebuild + redémarrage |
+| `make restart` | après modification de `backend/data/resources.json` |
+| `make logs` | journaux de l'appli |
+| `make proxy` | après modification de `proxy/Caddyfile` ou `proxy/.env` |
+| `make qr` | QR code à afficher dans le service (`sudo apt install qrencode`) |
+
+Pour ajouter un autre site plus tard : un nouveau bloc dans `proxy/Caddyfile`, le conteneur sur le réseau `proxy`, puis `make proxy`.
+
+### Optionnel : Docker Hub
+
+Si le serveur est lent à compiler, construis l'image sur ton PC et publie-la : `docker login` puis `make push` (image `touplitoui/clear-soken`, à créer en **privé** sur Docker Hub). Sur le serveur, remplace `build: .` par `image: touplitoui/clear-soken:latest` dans `docker-compose.yml`, puis `docker compose pull && docker compose up -d`.
 
 ## Pistes V2
 

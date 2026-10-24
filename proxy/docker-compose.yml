@@ -1,0 +1,28 @@
+# Reverse proxy commun du serveur : un seul Caddy écoute sur 80/443,
+# obtient les certificats HTTPS et redirige chaque domaine vers le bon conteneur.
+services:
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # pour joindre un service publié sur l'hôte (Bitwarden officiel)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # certificats : à ne pas supprimer
+      - caddy_config:/config
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: proxy
+
+volumes:
+  caddy_data:
+  caddy_config:

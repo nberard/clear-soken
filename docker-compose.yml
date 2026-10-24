@@ -1,27 +1,18 @@
-# Déploiement sur le serveur OVH : `DOMAIN=clearsoken.fr docker compose up -d --build`
-# Caddy gère le HTTPS automatiquement (Let's Encrypt). Ouvrir les ports 80 et 443.
+# Appli Clear Soken. Le HTTPS et les domaines sont gérés par le proxy (dossier proxy/),
+# qu'il faut démarrer avant : voir README.
 services:
-  app:
+  clearsoken:
     build: .
+    image: clear-soken:latest
+    container_name: clearsoken
     restart: unless-stopped
     volumes:
-      - ./backend/data:/app/data:ro   # l'annuaire peut être modifié sans rebuild (redémarrer app)
-
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
+      - ./backend/data:/app/data:ro   # l'annuaire se modifie sans rebuild (puis : make restart)
     ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
+      - "127.0.0.1:8080:8080"         # accès local uniquement (debug) ; le public passe par le proxy
+    networks:
+      - proxy
 
-volumes:
-  caddy_data:
-  caddy_config:
+networks:
+  proxy:
+    external: true

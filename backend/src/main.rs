@@ -108,8 +108,32 @@ fn load_resources(path: &PathBuf) -> Vec<Resource> {
         .unwrap_or_else(|e| panic!("{} n'est pas un JSON valide : {e}", path.display()))
 }
 
+/// `clear-soken-api --healthcheck` : utilisé par le HEALTHCHECK Docker
+/// (l'image n'embarque pas curl). Code retour 0 si /api/health répond.
+fn healthcheck() -> ! {
+    use std::io::{Read, Write};
+    let port = env::var("BIND")
+        .ok()
+        .and_then(|b| b.rsplit(':').next().map(str::to_owned))
+        .unwrap_or_else(|| "8080".into());
+    let ok = std::net::TcpStream::connect(format!("127.0.0.1:{port}"))
+        .and_then(|mut s| {
+            s.set_read_timeout(Some(std::time::Duration::from_secs(2)))?;
+            s.write_all(b"GET /api/health HTTP/1.0\r\nHost: localhost\r\n\r\n")?;
+            let mut buf = String::new();
+            s.read_to_string(&mut buf)?;
+            Ok(buf.starts_with("HTTP/1.0 200") || buf.starts_with("HTTP/1.1 200"))
+        })
+        .unwrap_or(false);
+    std::process::exit(if ok { 0 } else { 1 });
+}
+
 #[tokio::main]
 async fn main() {
+    if env::args().any(|a| a == "--healthcheck") {
+        healthcheck();
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();

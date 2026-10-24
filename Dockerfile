@@ -1,5 +1,5 @@
 # --- 1. Build de la PWA ---
-FROM node:22-alpine AS web
+FROM node:22-bookworm-slim AS web
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -7,10 +7,13 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- 2. Build de l'API Rust ---
-FROM rust:1-slim AS api
+FROM rust:1-slim-bookworm AS api
 WORKDIR /api
-COPY backend/ ./
-RUN cargo build --release
+COPY backend/Cargo.toml backend/Cargo.lock ./
+# Pré-compile les dépendances (cache Docker) avant de copier le code
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release && rm -rf src
+COPY backend/src ./src
+RUN touch src/main.rs && cargo build --release
 
 # --- 3. Image finale ---
 FROM debian:bookworm-slim
@@ -22,4 +25,5 @@ COPY backend/data /app/data
 ENV BIND=0.0.0.0:8080 STATIC_DIR=/app/static RESOURCES_FILE=/app/data/resources.json
 USER app
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s CMD ["/app/clear-soken-api", "--healthcheck"]
 CMD ["/app/clear-soken-api"]
