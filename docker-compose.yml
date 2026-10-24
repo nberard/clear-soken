@@ -9,7 +9,7 @@ services:
     volumes:
       - ./backend/data:/app/data:ro   # l'annuaire se modifie sans rebuild (puis : make restart)
     ports:
-      - "127.0.0.1:8080:8080"         # accès local uniquement (debug) ; le public passe par le proxy
+      - "127.0.0.1:8090:8080"         # accès local (debug) : curl localhost:8090 ; 8080 est pris par Jenkins
     networks:
       - proxy
 

@@ -70,15 +70,21 @@ Aujourd'hui Bitwarden occupe probablement 80/443. Repère quelle version tourne 
 docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
 ```
 
-**Bitwarden officiel** (images `bitwarden/*`, installé avec `bitwarden.sh`) : dans `bwdata/config.yml`, mets
+**Bitwarden officiel** (images `bitwarden/*`, installé avec `bitwarden.sh`) : dans `bwdata/config.yml` (dossier où se trouve `bitwarden.sh`), mets
 
 ```yaml
 http_port: 8081
 https_port: 8443
 ssl: false
+ssl_managed_lets_encrypt: false
 ```
 
-puis `./bitwarden.sh rebuild && ./bitwarden.sh restart`. Laisse `url: https://bitwarden.touplitoui.me` tel quel.
+Laisse `url: https://bitwarden.touplitoui.me` tel quel, puis :
+
+```bash
+./bitwarden.sh rebuild && ./bitwarden.sh restart
+```
+
 Dans `proxy/.env` : `BITWARDEN_UPSTREAM=host.docker.internal:8081`.
 
 **Vaultwarden** (image `vaultwarden/server`) : retire sa section `ports:` et branche-le sur le réseau du proxy :
