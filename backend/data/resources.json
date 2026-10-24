@@ -1,0 +1,74 @@
+[
+	{
+		"id": "3114",
+		"name": "3114 — Prévention du suicide",
+		"kind": "Écoute 24/7",
+		"description": "Numéro national gratuit, des professionnels du soin répondent jour et nuit, pour toi ou pour un proche.",
+		"city": null,
+		"phone": "3114",
+		"url": "https://3114.fr"
+	},
+	{
+		"id": "sos-amitie",
+		"name": "SOS Amitié",
+		"kind": "Écoute",
+		"description": "Des bénévoles formés écoutent, de façon anonyme, quand le moral est bas ou que la solitude pèse.",
+		"city": null,
+		"phone": "09 72 39 40 50",
+		"url": "https://www.sos-amitie.com"
+	},
+	{
+		"id": "fil-sante-jeunes",
+		"name": "Fil Santé Jeunes",
+		"kind": "Écoute 12-25 ans",
+		"description": "Écoute anonyme et gratuite pour les jeunes, par téléphone ou tchat.",
+		"city": null,
+		"phone": "0 800 235 236",
+		"url": "https://www.filsantejeunes.com"
+	},
+	{
+		"id": "gem",
+		"name": "Groupes d’Entraide Mutuelle (GEM)",
+		"kind": "Entraide",
+		"description": "Des lieux gérés par et pour des personnes concernées : activités, sorties, rencontres, sans obligation de soins.",
+		"city": null,
+		"phone": null,
+		"url": "https://www.psycom.org/sorienter/les-groupes-dentraide-mutuelle/"
+	},
+	{
+		"id": "clubhouse",
+		"name": "Clubhouse France",
+		"kind": "Retour à la vie sociale",
+		"description": "Des lieux de jour pour reprendre confiance, retrouver un rythme et préparer un retour vers l’emploi.",
+		"city": null,
+		"phone": null,
+		"url": "https://www.clubhousefrance.org"
+	},
+	{
+		"id": "unafam",
+		"name": "Unafam",
+		"kind": "Proches & familles",
+		"description": "Association qui accompagne l’entourage des personnes vivant avec des troubles psychiques.",
+		"city": null,
+		"phone": null,
+		"url": "https://www.unafam.org"
+	},
+	{
+		"id": "psycom",
+		"name": "Psycom",
+		"kind": "Information",
+		"description": "Informations fiables sur la santé mentale, les soins, les droits et l’annuaire des structures près de chez toi.",
+		"city": null,
+		"phone": null,
+		"url": "https://www.psycom.org"
+	},
+	{
+		"id": "cmp",
+		"name": "Centre Médico-Psychologique (CMP)",
+		"kind": "Soins après la sortie",
+		"description": "Le suivi de proximité après l’hospitalisation, gratuit. Demande à l’équipe le CMP de ton secteur.",
+		"city": null,
+		"phone": null,
+		"url": null
+	}
+]
