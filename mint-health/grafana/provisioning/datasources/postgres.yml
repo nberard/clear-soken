@@ -1,0 +1,16 @@
+apiVersion: 1
+datasources:
+  - name: Google Health
+    uid: healthpg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: db:5432
+    user: grafana_ro
+    isDefault: true
+    jsonData:
+      database: health
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD
