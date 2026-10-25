@@ -2,6 +2,7 @@
 
 ```
  Google Health API ──OAuth──▶ sync (FastAPI, :8765) ──▶ PostgreSQL ──▶ Grafana (:3000)
+ Google Fit / Health Connect ─(appli HC Webhook)─▲
                                    ▲                                     │  ▲
                                    │ /status, /auth, /sync          PNG  │  │ kiosque
                                    └──────── Applet Cinnamon ◀───────────┘  │
@@ -9,6 +10,7 @@
 ```
 
 - **sync** : connexion à ton compte Google (OAuth + PKCE), synchro toutes les 15 min des agrégats quotidiens (`dailyRollUp`) et des nuits de sommeil, stockage dans Postgres.
+- **Health Connect** (option) : les données de Google Fit, Samsung Health, montres… arrivent depuis le téléphone Android via l'appli « HC Webhook ». Voir [Google Fit et Health Connect](#google-fit-et-health-connect-téléphone-android).
 - **Grafana** : datasource et dashboard « Google Health » provisionnés automatiquement, panneaux transparents, consultation anonyme en lecture seule, embedding autorisé, rendu PNG.
 - **Applet Cinnamon** : pas du jour dans la barre, menu avec résumé + mini-graphique Grafana, bouton de connexion du compte, et dashboard complet dans une fenêtre sans bordure translucide ancrée au panneau.
 
@@ -90,18 +92,71 @@ Internet ─► Caddy ─► health.touplitoui.me  (mot de passe)
 
 Sur le serveur, Grafana n'a ni formulaire de connexion ni authentification propre : c'est Caddy qui protège tout l'hôte. Les données restent sur ton serveur OVH ; pour un tableau de bord personnel ce n'est pas un hébergement HDS, mais il ne faut pas y mettre de données de patients.
 
+## Google Fit et Health Connect (téléphone Android)
+
+L'API Google Fit est fermée aux nouveaux projets depuis 2024 et s'arrête en 2026. On passe donc par **Health Connect**, le coffre santé d'Android dans lequel Google Fit (et Samsung Health, Withings, les montres…) écrit ses données. L'appli open source **HC Webhook** les envoie à ton serveur toutes les 15 min.
+
+```
+Google Fit ─▶ Health Connect ─▶ HC Webhook ──HTTPS + jeton──▶ health.touplitoui.me/health/api/ingest/health-connect
+ (téléphone)                     (téléphone)                     └─▶ sync ─▶ PostgreSQL ─▶ Grafana / applet
+```
+
+Fonctionne avec le déploiement serveur (le téléphone doit joindre l'URL en HTTPS).
+
+**Sur le serveur**
+
+```bash
+echo "HC_INGEST_TOKEN=$(openssl rand -hex 32)" >> mint-health/.env
+grep HC_INGEST_TOKEN mint-health/.env        # note la valeur pour le téléphone
+make health-deploy && make health-proxy
+```
+
+**Sur le téléphone**
+
+1. **Google Fit** → Profil → ⚙️ → **Synchroniser Fit avec Santé Connect** : activé.
+2. Installe **HC Webhook** depuis le Play Store (« Health Connect Webhook », `com.hcwebhook.app`) et accorde-lui l'accès en lecture aux types voulus (pas, distance, calories, fréquence cardiaque, sommeil, poids…).
+3. **Webhooks → Ajouter** :
+   - URL : `https://health.touplitoui.me/health/api/ingest/health-connect`
+   - Format : **JSON**
+   - En-tête personnalisé : `x-api-key` = la valeur de `HC_INGEST_TOKEN`
+   - Touche **Test** : la réponse doit être `200`.
+4. **Réglages** :
+   - *Payload timestamps* : **Local time** (les jours sont calculés dans ton fuseau `TZ`).
+   - Pas, distance, calories : résolution **Daily** ou **N minutes** avec **Count overlapping apps once** activé, pour ne pas compter deux fois les pas d'une montre et du téléphone.
+   - Synchro : toutes les 15 min.
+
+**Ce qui est importé**
+
+| Health Connect | Métrique (même nom que Google Health) |
+|---|---|
+| `steps` | `steps.countSum` |
+| `distance` | `distance.millimetersSum` |
+| `total_calories` / `active_calories` | `total-calories.kcalSum` / `active-calories.kcalSum` |
+| `heart_rate` | `heart-rate.beatsPerMinuteAvg` / `Max` / `Min` |
+| `resting_heart_rate` | `daily-resting-heart-rate.beatsPerMinute` |
+| `heart_rate_variability` | `daily-heart-rate-variability.rmssdMillis` |
+| `weight` | `weight.kilograms` |
+| `exercise` | `exercise.minutesSum` |
+| `sleep` | table `sleep_sessions` (phases profond / léger / paradoxal) |
+
+Les autres types sont ignorés (listés dans la réponse sous `ignored_types`). Les modifications et suppressions faites dans Health Connect sont prises en compte.
+
+**Plusieurs sources** : si Google Health et Health Connect donnent tous deux une valeur pour le même jour, le tableau de bord et l'applet affichent celle de la première source de `SOURCE_PRIORITY` (par défaut `google-health,health-connect`). Les nuits qui se chevauchent sont dédoublonnées de la même façon. Pour n'utiliser que Google Fit, mets `SOURCE_PRIORITY=health-connect,google-health`, ou ne connecte pas Google Health.
+
 ## Données et dashboard
 
 | Table | Contenu |
 |---|---|
-| `daily_metrics(day, metric, value)` | Un point par jour et par champ numérique renvoyé par `dailyRollUp`, nommé `<type>.<champ>` (ex. `steps.countSum`) |
-| `sleep_sessions` | Une ligne par nuit : début, fin, minutes endormi / éveillé / profond / léger / paradoxal |
+| `daily_metrics(day, metric, value, source)` | Un point par jour, par champ numérique et par source (`google-health`, `health-connect`), nommé `<type>.<champ>` (ex. `steps.countSum`) |
+| `sleep_sessions` | Une ligne par nuit : début, fin, minutes endormi / éveillé / profond / léger / paradoxal, source |
+| `hc_records` | Enregistrements bruts reçus de Health Connect (pour recalculer les jours) |
+| vues `daily_best`, `sleep_best` | Une seule source par jour et par métrique, selon `SOURCE_PRIORITY` : c'est ce que lisent le dashboard et l'applet |
 | `sync_log` | Journal de chaque synchro (30 jours) |
 
 Les types synchronisés sont dans `ROLLUP_TYPES` (`.env`). Un type non disponible pour ton appareil ou ton compte est ignoré et apparaît en ✗ dans le panneau **Journal de synchro** : retire-le de la liste ou corrige son identifiant (voir l'[index des types de données](https://developers.google.com/health/data-types)). Le panneau **Toutes les métriques** liste les noms exacts reçus, pratique pour créer tes propres panneaux :
 
 ```sql
-SELECT day::timestamptz AS time, value FROM daily_metrics
+SELECT day::timestamptz AS time, value FROM daily_best
 WHERE metric = 'steps.countSum' AND $__timeFilter(day::timestamptz)
 ```
 
@@ -122,8 +177,12 @@ docker compose down -v                            # tout effacer, jeton Google c
 - **« Graphique indisponible »** : le conteneur `renderer` démarre lentement la première fois ; sinon `docker compose logs renderer`.
 - **Erreur `redirect_uri_mismatch`** : l'URI dans Google Cloud doit être exactement `http://localhost:8765/auth/callback`.
 - **Fenêtre opaque au lieu de translucide** : le compositeur de Cinnamon doit être actif (il l'est par défaut).
+- **HC Webhook : erreur 401** : l'en-tête `x-api-key` ne correspond pas à `HC_INGEST_TOKEN` ; **503** : `HC_INGEST_TOKEN` est vide dans `mint-health/.env`.
+- **Pas en double avec Health Connect** : active *Count overlapping apps once* dans HC Webhook, ou choisis la résolution *Daily*.
 - **Applet qui ne se met pas à jour après modification** : Alt+F2 → `r` → Entrée.
 
 ## Sécurité
 
 Le jeton Google est stocké dans le volume Docker `tokens` (fichier en `600`), les ports sont liés à `127.0.0.1` et Grafana n'autorise l'accès anonyme qu'en lecture. Ne publie pas ces ports sur le réseau sans ajouter une authentification.
+
+Sur le serveur, tout `health.touplitoui.me` est derrière le mot de passe de Caddy, sauf `/health/api/ingest/*` (POST uniquement, 20 Mo max) : le téléphone s'y authentifie avec `HC_INGEST_TOKEN`, comparé en temps constant. Garde ce jeton secret ; pour le changer, modifie `.env`, relance `make health-deploy` et mets à jour l'en-tête dans l'appli.

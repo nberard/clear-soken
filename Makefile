@@ -42,7 +42,7 @@ health-deploy:    ## build + démarrage de la synchro Google Health et de Grafan
 
 health-proxy:     ## active https://$$HEALTH_HOST dans Caddy (sous-domaine, ex. health.touplitoui.me)
 	rm -f proxy/sites/health.routes   # ancien format (sous /health du domaine Clear Soken)
-	cp -n proxy/sites/health.caddy.example proxy/sites/health.caddy || true
+	cp proxy/sites/health.caddy.example proxy/sites/health.caddy   # toujours à jour avec le dépôt
 	$(MAKE) proxy
 
 health-logs:

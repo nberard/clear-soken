@@ -48,7 +48,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT value FROM daily_metrics WHERE metric = 'steps.countSum' AND day = (now() AT TIME ZONE 'Europe/Paris')::date"
+          "rawSql": "SELECT value FROM daily_best WHERE metric = 'steps.countSum' AND day = (now() AT TIME ZONE 'Europe/Paris')::date"
         }
       ],
       "fieldConfig": {
@@ -102,7 +102,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT minutes_asleep * 60 AS value FROM sleep_sessions WHERE is_main IS NOT FALSE ORDER BY end_time DESC LIMIT 1"
+          "rawSql": "SELECT minutes_asleep * 60 AS value FROM sleep_best WHERE is_main IS NOT FALSE ORDER BY end_time DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -156,7 +156,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_metrics WHERE metric LIKE 'daily-resting-heart-rate.%' AND $__timeFilter(day::timestamptz) ORDER BY 1"
+          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_best WHERE metric LIKE 'daily-resting-heart-rate.%' AND $__timeFilter(day::timestamptz) ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -210,7 +210,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_metrics WHERE metric LIKE 'daily-heart-rate-variability.%' AND $__timeFilter(day::timestamptz) ORDER BY 1"
+          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_best WHERE metric LIKE 'daily-heart-rate-variability.%' AND $__timeFilter(day::timestamptz) ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -264,7 +264,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT day::timestamptz AS time, value AS \"Pas\" FROM daily_metrics WHERE metric = 'steps.countSum' AND $__timeFilter(day::timestamptz) ORDER BY 1"
+          "rawSql": "SELECT day::timestamptz AS time, value AS \"Pas\" FROM daily_best WHERE metric = 'steps.countSum' AND $__timeFilter(day::timestamptz) ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -327,7 +327,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT (end_time AT TIME ZONE 'Europe/Paris')::date::timestamptz AS time, sum(minutes_deep)/60.0 AS \"Profond\", sum(minutes_light)/60.0 AS \"Léger\", sum(minutes_rem)/60.0 AS \"Paradoxal\" FROM sleep_sessions WHERE is_main IS NOT FALSE AND $__timeFilter(end_time) GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT (end_time AT TIME ZONE 'Europe/Paris')::date::timestamptz AS time, sum(minutes_deep)/60.0 AS \"Profond\", sum(minutes_light)/60.0 AS \"Léger\", sum(minutes_rem)/60.0 AS \"Paradoxal\" FROM sleep_best WHERE is_main IS NOT FALSE AND $__timeFilter(end_time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -390,7 +390,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_metrics WHERE (metric LIKE 'daily-resting-heart-rate.%' OR metric LIKE 'daily-heart-rate-variability.%' OR metric LIKE 'heart-rate.%') AND $__timeFilter(day::timestamptz) ORDER BY 1"
+          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_best WHERE (metric LIKE 'daily-resting-heart-rate.%' OR metric LIKE 'daily-heart-rate-variability.%' OR metric LIKE 'heart-rate.%') AND $__timeFilter(day::timestamptz) ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -453,7 +453,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_metrics WHERE metric LIKE 'weight.%' AND $__timeFilter(day::timestamptz) ORDER BY 1"
+          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_best WHERE metric LIKE 'weight.%' AND $__timeFilter(day::timestamptz) ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -494,7 +494,7 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Activité (distance, calories, minutes actives)",
+      "title": "Activité (distance, calories, minutes actives, exercice)",
       "transparent": true,
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -516,7 +516,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_metrics WHERE (metric LIKE 'distance.%' OR metric LIKE 'total-calories.%' OR metric LIKE 'active-minutes.%') AND $__timeFilter(day::timestamptz) ORDER BY 1"
+          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_best WHERE (metric LIKE 'distance.%' OR metric LIKE 'total-calories.%' OR metric LIKE 'active-minutes.%' OR metric LIKE 'active-calories.%' OR metric LIKE 'exercise.%') AND $__timeFilter(day::timestamptz) ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -579,7 +579,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT metric AS \"Métrique\", round(avg(value)::numeric, 1) AS \"Moyenne\", round(min(value)::numeric, 1) AS \"Min\", round(max(value)::numeric, 1) AS \"Max\", count(*) AS \"Jours\" FROM daily_metrics WHERE $__timeFilter(day::timestamptz) GROUP BY metric ORDER BY metric"
+          "rawSql": "SELECT metric AS \"Métrique\", source AS \"Source\", round(avg(value)::numeric, 1) AS \"Moyenne\", round(min(value)::numeric, 1) AS \"Min\", round(max(value)::numeric, 1) AS \"Max\", count(*) AS \"Jours\" FROM daily_metrics WHERE $__timeFilter(day::timestamptz) GROUP BY metric, source ORDER BY metric, source"
         }
       ],
       "fieldConfig": {
