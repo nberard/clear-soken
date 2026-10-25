@@ -60,35 +60,35 @@ Dans le menu :
 
 Réglages de l'applet (clic droit → Configurer) : valeur affichée dans la barre, panneau Grafana du mini-graphique (ID 10 = pas par jour, 11 = sommeil…), taille et opacité de la fenêtre, fermeture auto.
 
-## Déployer sur le serveur OVH (`https://clearsoken.touplitoui.me/health`)
+## Déployer sur le serveur OVH (`https://health.touplitoui.me/health`)
 
-Le tableau de bord tourne à côté de Clear Soken, derrière le même Caddy, sous le chemin `/health` du même domaine et protégé par mot de passe. Pas de DNS supplémentaire. L'appli patients n'est pas touchée : ses conteneurs et son image Docker restent séparés, et seul `/health` demande un mot de passe.
+Le tableau de bord tourne à côté de Clear Soken, derrière le même Caddy, sur un sous-domaine à part et protégé par mot de passe. L'appli patients n'est pas touchée : ses conteneurs, son image Docker et son domaine restent séparés.
 
 ```
-Internet ─► Caddy ─► clearsoken.touplitoui.me
-                       ├─ /health/api/*  ─► mint-health-sync:8765      (mot de passe)
-                       ├─ /health/*      ─► mint-health-grafana:3000   (mot de passe)
-                       └─ tout le reste  ─► clearsoken:8080            (appli patients, public)
+Internet ─► Caddy ─► health.touplitoui.me  (mot de passe)
+                       ├─ /health/api/*  ─► mint-health-sync:8765
+                       └─ /health/*      ─► mint-health-grafana:3000
 ```
 
-1. **Google Cloud** : dans l'ID client OAuth, ajoute l'URI de redirection
-   `https://clearsoken.touplitoui.me/health/api/auth/callback`,
+1. **DNS** : `health.touplitoui.me` doit pointer vers l'IP du serveur (couvert par l'enregistrement joker `*` chez Namecheap).
+2. **Google Cloud** : dans l'ID client OAuth, ajoute l'URI de redirection
+   `https://health.touplitoui.me/health/api/auth/callback`,
    et `touplitoui.me` dans les **domaines autorisés** de l'écran de consentement.
-2. **Mot de passe** de `/health` :
+3. **Mot de passe** du sous-domaine :
    ```bash
    docker run --rm caddy:2 caddy hash-password --plaintext 'ton-mot-de-passe'
    ```
-   Dans `proxy/.env`, renseigne `HEALTH_AUTH_USER` et `HEALTH_AUTH_HASH='<hash>'` (avec les apostrophes).
-3. **Services** : dans `mint-health/.env` (copié depuis `.env.example`), laisse `HEALTH_HOST=clearsoken.touplitoui.me`, puis à la racine du dépôt :
+   Dans `proxy/.env`, renseigne `HEALTH_HOST`, `HEALTH_AUTH_USER` et `HEALTH_AUTH_HASH='<hash>'` (avec les apostrophes).
+4. **Services** : dans `mint-health/.env` (copié depuis `.env.example`), mets le même `HEALTH_HOST`, puis à la racine du dépôt :
    ```bash
    make health-deploy   # synchro + Postgres + Grafana
-   make health-proxy    # active /health dans Caddy
+   make health-proxy    # active le sous-domaine dans Caddy (HTTPS automatique)
    ```
-4. Ouvre `https://clearsoken.touplitoui.me/health/api/auth/start` pour connecter ton compte Google, puis `https://clearsoken.touplitoui.me/health/`.
+5. Ouvre `https://health.touplitoui.me/health/api/auth/start` pour connecter ton compte Google, puis `https://health.touplitoui.me/health/`.
 
-**Applet sur ton PC** (clic droit → Configurer) : URL du service `https://clearsoken.touplitoui.me/health/api`, URL de Grafana `https://clearsoken.touplitoui.me/health`, et ton identifiant et mot de passe. Ils sont stockés dans un fichier privé (`~/.cache/google-health-applet/curl-auth.conf`, droits 600), jamais passés en argument de commande.
+**Applet sur ton PC** (clic droit → Configurer) : URL du service `https://health.touplitoui.me/health/api`, URL de Grafana `https://health.touplitoui.me/health`, et ton identifiant et mot de passe. Ils sont stockés dans un fichier privé (`~/.cache/google-health-applet/curl-auth.conf`, droits 600), jamais passés en argument de commande.
 
-Sur le serveur, Grafana n'a ni formulaire de connexion ni authentification propre : c'est Caddy qui protège `/health`. Les données restent sur ton serveur OVH ; pour un tableau de bord personnel ce n'est pas un hébergement HDS, mais il ne faut pas y mettre de données de patients.
+Sur le serveur, Grafana n'a ni formulaire de connexion ni authentification propre : c'est Caddy qui protège tout l'hôte. Les données restent sur ton serveur OVH ; pour un tableau de bord personnel ce n'est pas un hébergement HDS, mais il ne faut pas y mettre de données de patients.
 
 ## Données et dashboard
 
