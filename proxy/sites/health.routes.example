@@ -1,0 +1,29 @@
+# --- Tableau de bord santé perso (mint-health), sous https://{$CLEARSOKEN_DOMAIN}/health ---
+# Importé dans le bloc Clear Soken du Caddyfile. Activé par : make health-proxy
+# (copie ce fichier en sites/health.routes).
+# Variables dans proxy/.env : HEALTH_AUTH_USER, HEALTH_AUTH_HASH
+# Seul /health est protégé par mot de passe ; l'appli patients reste publique.
+
+header /health* {
+	X-Robots-Tag "noindex, nofollow"
+	Referrer-Policy "no-referrer"
+}
+
+redir /health /health/
+
+# Service de synchro : connexion Google, statut, synchro manuelle
+handle /health/api/* {
+	basic_auth {
+		{$HEALTH_AUTH_USER} {$HEALTH_AUTH_HASH}
+	}
+	uri strip_prefix /health/api
+	reverse_proxy mint-health-sync:8765
+}
+
+# Grafana (servi sous /health)
+handle /health/* {
+	basic_auth {
+		{$HEALTH_AUTH_USER} {$HEALTH_AUTH_HASH}
+	}
+	reverse_proxy mint-health-grafana:3000
+}

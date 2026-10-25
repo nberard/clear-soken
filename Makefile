@@ -40,8 +40,9 @@ HEALTH_COMPOSE = cd mint-health && docker compose -f docker-compose.yml -f docke
 health-deploy:    ## build + démarrage de la synchro Google Health et de Grafana
 	$(HEALTH_COMPOSE) up -d --build
 
-health-proxy:     ## active https://$$HEALTH_HOST/health dans Caddy
-	cp -n proxy/sites/health.caddy.example proxy/sites/health.caddy || true
+health-proxy:     ## active https://$(DOMAIN)/health dans Caddy
+	rm -f proxy/sites/health.caddy   # ancien format (sous-domaine séparé)
+	cp -n proxy/sites/health.routes.example proxy/sites/health.routes || true
 	$(MAKE) proxy
 
 health-logs:

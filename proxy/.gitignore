@@ -1,3 +1,4 @@
 .env
 caddy_data/
 sites/*.caddy
+sites/*.routes
