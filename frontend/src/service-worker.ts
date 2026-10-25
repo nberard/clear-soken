@@ -35,6 +35,8 @@ sw.addEventListener('fetch', (event) => {
 	if (req.method !== 'GET') return;
 	const url = new URL(req.url);
 	if (url.origin !== sw.location.origin) return;
+	// /health : tableau de bord perso (mint-health), hors de l'appli : jamais mis en cache
+	if (url.pathname === '/health' || url.pathname.startsWith('/health/')) return;
 
 	// Fichiers de l'appli : cache d'abord
 	if (ASSETS.includes(url.pathname)) {

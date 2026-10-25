@@ -94,7 +94,7 @@ Si le serveur est lent à compiler, construis l'image sur ton PC et publie-la : 
 
 ## À côté : tableau de bord santé perso (`mint-health/`)
 
-Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://<moi>.clearsoken.fr/health` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).
+Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://clearsoken.touplitoui.me/health` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).
 
 ## Pistes V2
 

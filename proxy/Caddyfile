@@ -10,7 +10,13 @@
 	log {
 		output discard
 	}
-	reverse_proxy clearsoken:8080
+
+	# Routes optionnelles sur ce domaine (ex. /health : make health-proxy)
+	import /etc/caddy/sites/*.routes
+
+	handle {
+		reverse_proxy clearsoken:8080
+	}
 }
 
 # --- Sites optionnels (ex. tableau de bord santé : make health-proxy) ---
