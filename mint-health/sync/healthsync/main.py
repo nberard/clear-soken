@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from html import escape
 
-from fastapi import FastAPI, Query
+import hmac
+
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from . import config, oauth, store, sync
+from . import config, health_connect, oauth, store, sync
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -84,6 +86,32 @@ async def status():
     except Exception as e:
         data["db_error"] = str(e)
     return data
+
+
+@app.post("/ingest/health-connect")
+async def ingest_health_connect(
+    request: Request,
+    x_api_key: str | None = Header(None),
+    authorization: str | None = Header(None),
+):
+    """Reçoit les données Health Connect (Google Fit, etc.) envoyées par HC Webhook."""
+    if not config.HC_INGEST_TOKEN:
+        raise HTTPException(503, "Connecteur Health Connect désactivé (HC_INGEST_TOKEN vide)")
+    given = x_api_key or (authorization or "").removeprefix("Bearer ").strip()
+    if not given or not hmac.compare_digest(given.encode(), config.HC_INGEST_TOKEN.encode()):
+        raise HTTPException(401, "Jeton invalide")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "JSON invalide")
+    if not isinstance(payload, dict):
+        raise HTTPException(400, "Objet JSON attendu")
+    try:
+        return await health_connect.ingest(payload)
+    except Exception as e:
+        logging.getLogger("healthsync").exception("Health Connect : échec de l'ingestion")
+        await store.log(health_connect.SOURCE, False, 0, str(e)[:500])
+        raise HTTPException(500, "Échec de l'enregistrement")
 
 
 @app.get("/healthz")

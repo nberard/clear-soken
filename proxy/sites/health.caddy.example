@@ -12,9 +12,23 @@
 		output discard
 	}
 
-	# Tout l'hôte est derrière un mot de passe (Grafana est en lecture anonyme derrière).
-	basic_auth {
+	# Tout l'hôte est derrière un mot de passe (Grafana est en lecture anonyme derrière),
+	# sauf l'envoi Health Connect du téléphone, protégé par son propre jeton (HC_INGEST_TOKEN).
+	@protected not path /health/api/ingest/*
+	basic_auth @protected {
 		{$HEALTH_AUTH_USER} {$HEALTH_AUTH_HASH}
+	}
+
+	# Envoi Health Connect : uniquement POST, taille limitée
+	@ingest path /health/api/ingest/*
+	handle @ingest {
+		@notpost not method POST
+		respond @notpost 405
+		request_body {
+			max_size 20MB
+		}
+		uri strip_prefix /health/api
+		reverse_proxy mint-health-sync:8765
 	}
 
 	redir / /health/

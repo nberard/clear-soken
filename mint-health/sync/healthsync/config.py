@@ -40,6 +40,14 @@ SYNC_SLEEP = _env("SYNC_SLEEP", "true").lower() == "true"
 DATABASE_URL = _env("DATABASE_URL", "postgresql://health:health@db:5432/health")
 TOKEN_FILE = _env("TOKEN_FILE", "/data/token.json")
 
+# --- Health Connect (appli Android « HC Webhook ») ---
+# Jeton à mettre dans l'en-tête x-api-key de l'appli. Vide = connecteur désactivé.
+HC_INGEST_TOKEN = _env("HC_INGEST_TOKEN", "")
+# Ordre de préférence quand plusieurs sources ont une valeur pour le même jour.
+SOURCE_PRIORITY = [
+    s.strip() for s in _env("SOURCE_PRIORITY", "google-health,health-connect").split(",") if s.strip()
+]
+
 TZ = ZoneInfo(_env("TZ", "Europe/Paris"))
 SYNC_INTERVAL_MIN = int(_env("SYNC_INTERVAL_MIN", "15"))
 BACKFILL_DAYS = int(_env("BACKFILL_DAYS", "90"))
