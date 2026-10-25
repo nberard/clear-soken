@@ -34,7 +34,7 @@ sudo apt install docker.io docker-compose-v2   # si Docker n'est pas installé
 sudo usermod -aG docker $USER                   # puis déconnexion/reconnexion
 
 cp .env.example .env
-nano .env          # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, et change les 3 mots de passe
+nano .env          # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, les 3 mots de passe et RENDERER_TOKEN (openssl rand -hex 32)
 docker compose up -d --build
 ```
 
