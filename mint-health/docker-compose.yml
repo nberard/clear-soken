@@ -37,6 +37,9 @@ services:
   renderer:
     image: grafana/grafana-image-renderer:latest
     restart: unless-stopped
+    environment:
+      # Jeton partagé avec Grafana (obligatoire : Grafana refuse la valeur par défaut)
+      AUTH_TOKEN: ${RENDERER_TOKEN:?RENDERER_TOKEN manquant dans mint-health/.env (openssl rand -hex 32)}
 
   grafana:
     image: grafana/grafana-oss:latest
@@ -58,6 +61,7 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       # Rendu PNG des panneaux (affichés dans le menu de l'applet)
       GF_RENDERING_SERVER_URL: http://renderer:8081/render
+      GF_RENDERING_RENDERER_TOKEN: ${RENDERER_TOKEN:?RENDERER_TOKEN manquant dans mint-health/.env (openssl rand -hex 32)}
       GF_RENDERING_CALLBACK_URL: http://grafana:3000/
     volumes:
       - grafana:/var/lib/grafana
