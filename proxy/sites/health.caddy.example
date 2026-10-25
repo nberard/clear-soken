@@ -1,0 +1,37 @@
+# --- Tableau de bord santé perso (mint-health) ---
+# Activé par : make health-proxy (copie ce fichier en sites/health.caddy)
+# Variables dans proxy/.env : HEALTH_HOST, HEALTH_AUTH_USER, HEALTH_AUTH_HASH
+{$HEALTH_HOST} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Robots-Tag "noindex, nofollow"
+		Referrer-Policy "no-referrer"
+	}
+	log {
+		output discard
+	}
+
+	# Tout l'hôte est derrière un mot de passe (Grafana est en lecture anonyme derrière).
+	basic_auth {
+		{$HEALTH_AUTH_USER} {$HEALTH_AUTH_HASH}
+	}
+
+	redir / /health/
+	redir /health /health/
+
+	# Service de synchro : connexion Google, statut, synchro manuelle
+	handle /health/api/* {
+		uri strip_prefix /health/api
+		reverse_proxy mint-health-sync:8765
+	}
+
+	# Grafana (servi sous /health)
+	handle /health/* {
+		reverse_proxy mint-health-grafana:3000
+	}
+
+	handle {
+		respond 404
+	}
+}
