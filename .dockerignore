@@ -6,3 +6,4 @@ backend/target
 proxy
 *.png
 !frontend/static/**/*.png
+mint-health/

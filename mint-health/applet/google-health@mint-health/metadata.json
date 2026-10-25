@@ -1,0 +1,9 @@
+{
+  "uuid": "google-health@mint-health",
+  "name": "Google Health",
+  "description": "Pas, sommeil et cœur depuis Google Health, avec dashboards Grafana intégrés à la barre des tâches.",
+  "version": "1.0.0",
+  "max-instances": 1,
+  "multiversion": false,
+  "cinnamon-version": ["5.4", "5.6", "5.8", "6.0", "6.2", "6.4", "6.6"]
+}

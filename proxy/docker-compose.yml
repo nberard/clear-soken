@@ -12,6 +12,7 @@ services:
     env_file: .env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro   # sites optionnels (*.caddy)
       - caddy_data:/data        # certificats : à ne pas supprimer
       - caddy_config:/config
     networks:

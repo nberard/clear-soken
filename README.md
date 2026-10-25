@@ -92,6 +92,10 @@ Pour ajouter un autre site plus tard : un nouveau bloc dans `proxy/Caddyfile`, l
 
 Si le serveur est lent à compiler, construis l'image sur ton PC et publie-la : `docker login` puis `make push` (image `touplitoui/clear-soken`, à créer en **privé** sur Docker Hub). Sur le serveur, remplace `build: .` par `image: touplitoui/clear-soken:latest` dans `docker-compose.yml`, puis `docker compose pull && docker compose up -d`.
 
+## À côté : tableau de bord santé perso (`mint-health/`)
+
+Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://<moi>.clearsoken.fr/health` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).
+
 ## Pistes V2
 
 - Communauté d'anciens patients (groupes modérés, parrainage) : nécessite HDS, modération et protocole de crise

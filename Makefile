@@ -1,7 +1,7 @@
 DOMAIN ?= clearsoken.touplitoui.me
 IMAGE  ?= touplitoui/clear-soken
 
-.PHONY: dev-api dev-web test proxy deploy update restart logs qr push
+.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -33,6 +33,19 @@ logs:
 qr:               ## QR code à imprimer pour le service (sudo apt install qrencode)
 	qrencode -s 20 -m 2 -o qr-clearsoken.png "https://$(DOMAIN)/"
 	@echo "-> qr-clearsoken.png"
+
+# --- Tableau de bord santé perso (mint-health), voir mint-health/README.md ---
+HEALTH_COMPOSE = cd mint-health && docker compose -f docker-compose.yml -f docker-compose.server.yml
+
+health-deploy:    ## build + démarrage de la synchro Google Health et de Grafana
+	$(HEALTH_COMPOSE) up -d --build
+
+health-proxy:     ## active https://$$HEALTH_HOST/health dans Caddy
+	cp -n proxy/sites/health.caddy.example proxy/sites/health.caddy || true
+	$(MAKE) proxy
+
+health-logs:
+	$(HEALTH_COMPOSE) logs -f --tail=100
 
 # --- Optionnel : construire sur le PC et publier sur Docker Hub ---
 push:
