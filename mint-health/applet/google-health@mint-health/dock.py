@@ -5,6 +5,7 @@ qui affiche le dashboard Grafana en mode kiosque.
 Dépendances (Linux Mint 22) : sudo apt install python3-gi gir1.2-webkit2-4.1
 """
 import argparse
+import os
 import signal
 
 import gi
@@ -70,6 +71,10 @@ class Dock(Gtk.Window):
         self.web.load_uri(args.url)
         # Liens externes -> navigateur par défaut
         self.web.connect("decide-policy", self._on_policy)
+        # Mot de passe du serveur (Caddy basic_auth), transmis par l'applet
+        self._auth = os.environ.pop("MINT_HEALTH_AUTH", "")
+        self._auth_tries = 0
+        self.web.connect("authenticate", self._on_authenticate)
         self.add(self.web)
 
         self.connect("key-press-event", self._on_key)
@@ -104,6 +109,17 @@ class Dock(Gtk.Window):
         elif event.keyval == Gdk.KEY_F5:
             self.web.reload()
         return False
+
+    def _on_authenticate(self, _web, request):
+        # Une seule tentative automatique ; ensuite WebKit affiche sa propre invite
+        if not self._auth or ":" not in self._auth or self._auth_tries > 0:
+            return False
+        self._auth_tries += 1
+        user, password = self._auth.split(":", 1)
+        request.authenticate(
+            WebKit2.Credential.new(user, password, WebKit2.CredentialPersistence.FOR_SESSION)
+        )
+        return True
 
     def _on_policy(self, _web, decision, kind):
         if kind == WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION:

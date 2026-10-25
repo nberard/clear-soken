@@ -51,10 +51,12 @@ class GoogleHealthApplet extends Applet.TextIconApplet {
             ["panel-metric", "panelMetric"], ["mini-panel-id", "miniPanelId"], ["mini-range", "miniRange"],
             ["refresh-min", "refreshMin"], ["dock-width", "dockWidth"], ["dock-height", "dockHeight"],
             ["dock-opacity", "dockOpacity"], ["dock-autoclose", "dockAutoclose"],
+            ["auth-user", "authUser"], ["auth-password", "authPassword"],
         ];
         for (const [key, prop] of keys) {
             this.settings.bind(key, prop, () => this._onSettingsChanged());
         }
+        this._writeCurlAuth();
 
         this.set_applet_icon_symbolic_name("emblem-favorite-symbolic");
         this.set_applet_tooltip("Google Health");
@@ -196,7 +198,11 @@ class GoogleHealthApplet extends Applet.TextIconApplet {
             "--opacity", String(this.dockOpacity)];
         if (this.dockAutoclose) argv.push("--autoclose");
         try {
-            const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+            const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.NONE });
+            // Variable d'environnement (lisible seulement par l'utilisateur), pas un argument
+            if (this.authUser) launcher.setenv("MINT_HEALTH_AUTH", `${this.authUser}:${this.authPassword || ""}`, true);
+            else launcher.unsetenv("MINT_HEALTH_AUTH");
+            const proc = launcher.spawnv(argv);
             this._dock = proc;
             proc.wait_async(null, () => { if (this._dock === proc) this._dock = null; });
         } catch (e) {
@@ -206,10 +212,34 @@ class GoogleHealthApplet extends Applet.TextIconApplet {
 
     /* ---------- utilitaires ---------- */
 
+    /* Identifiants du serveur dans un fichier de config curl en 0600 :
+       ils n'apparaissent pas dans la liste des processus (ps). */
+    _writeCurlAuth() {
+        this._curlAuthFile = GLib.build_filenamev([CACHE_DIR, "curl-auth.conf"]);
+        if (!this.authUser) {
+            GLib.unlink(this._curlAuthFile);
+            return;
+        }
+        const esc = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const content = `user = "${esc(this.authUser)}:${esc(this.authPassword || "")}"\n`;
+        try {
+            const file = Gio.File.new_for_path(this._curlAuthFile);
+            const stream = file.replace(null, false, Gio.FileCreateFlags.PRIVATE, null);
+            stream.write_all(new TextEncoder().encode(content), null);
+            stream.close(null);
+        } catch (e) {
+            global.logError(`google-health: écriture des identifiants impossible : ${e}`);
+        }
+    }
+
+    _authArgs() {
+        return this.authUser ? ["-K", this._curlAuthFile] : [];
+    }
+
     _curl(args, cb) {
         try {
             const proc = Gio.Subprocess.new(
-                ["curl", "-s", "--max-time", "10"].concat(args),
+                ["curl", "-s", "--max-time", "10"].concat(this._authArgs(), args),
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE);
             proc.communicate_utf8_async(null, null, (p, res) => {
                 let out = "", ok = false;
@@ -242,6 +272,7 @@ class GoogleHealthApplet extends Applet.TextIconApplet {
     }
 
     _onSettingsChanged() {
+        this._writeCurlAuth();
         this._schedule();
         this._refreshStatus();
     }
@@ -255,6 +286,7 @@ class GoogleHealthApplet extends Applet.TextIconApplet {
         this._timer = 0;
         if (this._dock) this._dock.force_exit();
         if (this._chartFile) GLib.unlink(this._chartFile);
+        if (this._curlAuthFile) GLib.unlink(this._curlAuthFile);
         this.settings.finalize();
     }
 }

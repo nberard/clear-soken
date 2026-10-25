@@ -13,6 +13,9 @@
 	reverse_proxy clearsoken:8080
 }
 
+# --- Sites optionnels (ex. tableau de bord santé : make health-proxy) ---
+import /etc/caddy/sites/*.caddy
+
 # --- Ajouter un autre site ---
 # Le conteneur doit être sur le réseau Docker "proxy", puis : make proxy
 #

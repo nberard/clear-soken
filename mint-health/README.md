@@ -60,6 +60,36 @@ Dans le menu :
 
 Réglages de l'applet (clic droit → Configurer) : valeur affichée dans la barre, panneau Grafana du mini-graphique (ID 10 = pas par jour, 11 = sommeil…), taille et opacité de la fenêtre, fermeture auto.
 
+## Déployer sur le serveur OVH (`https://<toi>.clearsoken.fr/health`)
+
+Le tableau de bord tourne à côté de Clear Soken, derrière le même Caddy, sur un sous-domaine à part et protégé par mot de passe. L'appli patients n'est pas touchée : ses conteneurs, son image Docker et son domaine restent séparés.
+
+```
+Internet ─► Caddy ─► nico.clearsoken.fr  (mot de passe)
+                       ├─ /health/api/*  ─► mint-health-sync:8765
+                       └─ /health/*      ─► mint-health-grafana:3000
+```
+
+1. **DNS** : enregistrement **A** `nico.clearsoken.fr` (ou ton identifiant) vers l'IP du serveur.
+2. **Google Cloud** : dans l'ID client OAuth, ajoute l'URI de redirection
+   `https://nico.clearsoken.fr/health/api/auth/callback`,
+   et `clearsoken.fr` dans les **domaines autorisés** de l'écran de consentement.
+3. **Mot de passe** du sous-domaine :
+   ```bash
+   docker run --rm caddy:2 caddy hash-password --plaintext 'ton-mot-de-passe'
+   ```
+   Dans `proxy/.env`, renseigne `HEALTH_HOST`, `HEALTH_AUTH_USER` et `HEALTH_AUTH_HASH='<hash>'` (avec les apostrophes).
+4. **Services** : dans `mint-health/.env` (copié depuis `.env.example`), mets le même `HEALTH_HOST`, puis à la racine du dépôt :
+   ```bash
+   make health-deploy   # synchro + Postgres + Grafana
+   make health-proxy    # active le sous-domaine dans Caddy (HTTPS automatique)
+   ```
+5. Ouvre `https://nico.clearsoken.fr/health/api/auth/start` pour connecter ton compte Google, puis `https://nico.clearsoken.fr/health/`.
+
+**Applet sur ton PC** (clic droit → Configurer) : URL du service `https://nico.clearsoken.fr/health/api`, URL de Grafana `https://nico.clearsoken.fr/health`, et ton identifiant et mot de passe. Ils sont stockés dans un fichier privé (`~/.cache/google-health-applet/curl-auth.conf`, droits 600), jamais passés en argument de commande.
+
+Sur le serveur, Grafana n'a ni formulaire de connexion ni authentification propre : c'est Caddy qui protège tout l'hôte. Les données restent sur ton serveur OVH ; pour un tableau de bord personnel ce n'est pas un hébergement HDS, mais il ne faut pas y mettre de données de patients.
+
 ## Données et dashboard
 
 | Table | Contenu |
