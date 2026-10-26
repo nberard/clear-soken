@@ -34,14 +34,21 @@
 	redir / /health/
 	redir /health /health/
 
-	# Service de synchro : connexion Google, statut, synchro manuelle
-	handle /health/api/* {
+	# Service de synchro : uniquement ses routes. Tout le reste de /health/api/*
+	# appartient à Grafana (son API interne : /api/dashboards, /api/folders…).
+	@sync path /health/api/auth/start /health/api/auth/callback /health/api/auth/logout /health/api/status /health/api/sync /health/api/healthz
+	handle @sync {
 		uri strip_prefix /health/api
 		reverse_proxy mint-health-sync:8765
 	}
 
 	# Grafana (servi sous /health)
-	handle /health/* {
+	@grafana {
+		path /health/*
+		not path /health/api/ingest/*
+		not path /health/api/auth/start /health/api/auth/callback /health/api/auth/logout /health/api/status /health/api/sync /health/api/healthz
+	}
+	handle @grafana {
 		reverse_proxy mint-health-grafana:3000
 	}
 
