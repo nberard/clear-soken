@@ -102,7 +102,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT minutes_asleep * 60 AS value FROM sleep_best WHERE is_main IS NOT FALSE ORDER BY end_time DESC LIMIT 1"
+          "rawSql": "SELECT minutes_asleep * 60 AS value FROM sleep_best WHERE main_night ORDER BY end_time DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -305,7 +305,7 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Sommeil par phase",
+      "title": "Sommeil par phase (nuit) et siestes",
       "transparent": true,
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -327,7 +327,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT (end_time AT TIME ZONE 'Europe/Paris')::date::timestamptz AS time, sum(minutes_deep)/60.0 AS \"Profond\", sum(minutes_light)/60.0 AS \"Léger\", sum(minutes_rem)/60.0 AS \"Paradoxal\" FROM sleep_best WHERE is_main IS NOT FALSE AND $__timeFilter(end_time) GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT (end_time AT TIME ZONE 'Europe/Paris')::date::timestamptz AS time, sum(minutes_deep) FILTER (WHERE main_night)/60.0 AS \"Profond\", sum(minutes_light) FILTER (WHERE main_night)/60.0 AS \"Léger\", sum(minutes_rem) FILTER (WHERE main_night)/60.0 AS \"Paradoxal\", coalesce(sum(minutes_asleep) FILTER (WHERE NOT main_night), 0)/60.0 AS \"Siestes\" FROM sleep_best WHERE $__timeFilter(end_time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {

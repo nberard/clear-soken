@@ -176,3 +176,19 @@ def test_ingest_end_to_end(client):
     # /status lit les vues et signale le dernier envoi Health Connect
     st = client.get("/status").json()
     assert st["health_connect_last"] and "1 suppression" in st["health_connect_message"]
+
+
+@needs_db
+def test_main_night_vs_nap(client):
+    """Cas réel : Google Health ne marque pas la nuit principale ; la plus longue
+    session du jour est la nuit, les autres sont des siestes."""
+    q("DELETE FROM sleep_sessions WHERE id IN ('n15', 'sieste15')")
+    q("""INSERT INTO sleep_sessions (id, start_time, end_time, minutes_asleep, minutes_deep, source) VALUES
+         ('n15', '2026-10-15T00:07:00+02:00', '2026-10-15T09:49:00+02:00', 513, 86, 'google-health'),
+         ('sieste15', '2026-10-15T13:46:00+02:00', '2026-10-15T15:27:00+02:00', 89, 26, 'google-health')""")
+    rows = dict(q("SELECT id, main_night FROM sleep_best WHERE id IN ('n15', 'sieste15')"))
+    assert rows == {"n15": True, "sieste15": False}
+    # is_main fourni par la source : il est respecté
+    q("UPDATE sleep_sessions SET is_main = true WHERE id = 'sieste15'")
+    assert dict(q("SELECT id, main_night FROM sleep_best WHERE id IN ('n15', 'sieste15')"))["sieste15"] is True
+    q("DELETE FROM sleep_sessions WHERE id IN ('n15', 'sieste15')")
