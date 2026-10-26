@@ -63,11 +63,12 @@ END $$;
 """
 
 
-def _views_sql(priority: list[str]) -> str:
+def _views_sql(priority: list[str], tz: str = "Europe/Paris") -> str:
     """Vues lues par Grafana et /status : une seule source par jour et par métrique
     (la première de SOURCE_PRIORITY qui a une valeur), nuits sans doublon."""
     cases = " ".join(f"WHEN '{s}' THEN {i}" for i, s in enumerate(priority) if s.replace("-", "").isalnum())
     prio = f"CASE {{t}}.source {cases} ELSE 99 END"
+    tz_safe = tz if all(c.isalnum() or c in "/_-+" for c in tz) else "UTC"
     return f"""
 DROP VIEW IF EXISTS daily_best;
 DROP VIEW IF EXISTS sleep_best;
@@ -75,13 +76,23 @@ CREATE VIEW daily_best AS
     SELECT DISTINCT ON (day, metric) day, metric, value, source, updated_at
     FROM daily_metrics m
     ORDER BY day, metric, {prio.format(t="m")};
+-- main_night : la session principale du jour (fin de session, heure locale).
+-- Google Health ne renseigne pas toujours is_main : on prend alors la plus longue,
+-- les autres sont des siestes.
 CREATE VIEW sleep_best AS
-    SELECT s.* FROM sleep_sessions s
-    WHERE NOT EXISTS (
-        SELECT 1 FROM sleep_sessions o
-        WHERE {prio.format(t="o")} < {prio.format(t="s")}
-          AND o.start_time < s.end_time AND o.end_time > s.start_time
-    );
+    SELECT b.*,
+           COALESCE(b.is_main, row_number() OVER (
+               PARTITION BY (b.end_time AT TIME ZONE '{tz_safe}')::date
+               ORDER BY b.minutes_asleep DESC NULLS LAST, b.end_time - b.start_time DESC
+           ) = 1) AS main_night
+    FROM (
+        SELECT s.* FROM sleep_sessions s
+        WHERE NOT EXISTS (
+            SELECT 1 FROM sleep_sessions o
+            WHERE {prio.format(t="o")} < {prio.format(t="s")}
+              AND o.start_time < s.end_time AND o.end_time > s.start_time
+        )
+    ) b;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
@@ -98,7 +109,7 @@ async def connect() -> psycopg.AsyncConnection:
 async def init() -> None:
     async with await connect() as conn:
         await conn.execute(SCHEMA)
-        await conn.execute(_views_sql(config.SOURCE_PRIORITY))
+        await conn.execute(_views_sql(config.SOURCE_PRIORITY, config.TZ.key))
 
 
 async def upsert_metrics(rows: list[tuple[date, str, float]], source: str = "google-health") -> None:
@@ -219,7 +230,7 @@ async def summary(today: date) -> dict:
         metrics = {m: v for m, v in await cur.fetchall()}
         cur = await conn.execute(
             """SELECT minutes_asleep, end_time FROM sleep_best
-               WHERE is_main IS NOT FALSE ORDER BY end_time DESC LIMIT 1"""
+               WHERE main_night ORDER BY end_time DESC LIMIT 1"""
         )
         sleep = await cur.fetchone()
         cur = await conn.execute(
