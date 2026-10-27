@@ -1,4 +1,4 @@
-"""API locale : connexion Google, statut pour l'applet, déclenchement de synchro."""
+"""API locale : connexion Google, statut pour l'applet, déclenchement de synchro, journal vocal."""
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -10,7 +10,7 @@ import hmac
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from . import config, health_connect, oauth, store, sync
+from . import config, health_connect, memos, oauth, store, sync
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
     for attempt in range(30):  # attendre que Postgres soit prêt
         try:
             await store.init()
+            await memos.init()
             break
         except Exception:
             await asyncio.sleep(2)
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Mint Health Sync", lifespan=lifespan)
+app.include_router(memos.router)
 
 
 def _page(title: str, body: str) -> HTMLResponse:

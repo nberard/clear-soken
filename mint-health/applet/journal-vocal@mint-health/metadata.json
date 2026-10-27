@@ -1,0 +1,9 @@
+{
+  "uuid": "journal-vocal@mint-health",
+  "name": "Journal vocal",
+  "description": "Un clic pour enregistrer un mémo vocal, un clic pour l'arrêter. Copie locale + envoi vers le journal vocal de mint-health (Grafana, téléphone).",
+  "version": "1.0.0",
+  "max-instances": 1,
+  "multiversion": false,
+  "cinnamon-version": ["5.4", "5.6", "5.8", "6.0", "6.2", "6.4", "6.6"]
+}

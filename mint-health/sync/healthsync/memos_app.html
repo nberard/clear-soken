@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16181d">
+<title>Journal vocal</title>
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<link rel="icon" href="icon.svg">
+<style>
+	:root {
+		--bg: #16181d; --surface: #1f2228; --soft: #2a2e36; --text: #e6e6e6; --muted: #9aa0a9;
+		--rec: #e0685a; --ok: #73bf69; --accent: #8ab4f8;
+		color-scheme: dark;
+	}
+	* { box-sizing: border-box; }
+	[hidden] { display: none !important; }
+	html, body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+	main { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 1.25rem) 16px calc(env(safe-area-inset-bottom) + 2rem); }
+	h1 { font-size: 1.4rem; margin: 0; }
+	header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+	header a { color: var(--accent); font-size: .9rem; text-decoration: none; }
+	.muted { color: var(--muted); font-size: .9rem; }
+
+	.recorder { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 2.2rem 1rem 1.6rem; margin: 1rem 0 1.5rem; background: var(--surface); border-radius: 20px; transition: background .2s; }
+	.recorder.on { background: #33231f; }
+	#mic {
+		--lvl: 0; --halo: rgb(224 104 90 / .22);
+		width: 140px; height: 140px; border: none; border-radius: 50%; margin-bottom: 1.3rem;
+		background: var(--rec); color: #fff; display: grid; place-items: center; cursor: pointer;
+		box-shadow: 0 0 0 0 var(--halo); animation: invite 3s ease-in-out infinite;
+		transition: transform .15s; touch-action: manipulation;
+	}
+	#mic:active { transform: scale(.95); }
+	#mic svg { width: 54px; height: 54px; fill: currentColor; }
+	#mic.on { animation: none; --halo: rgb(224 104 90 / .32); box-shadow: 0 0 0 calc(8px + var(--lvl) * 36px) var(--halo); transition: box-shadow .08s linear; }
+	@keyframes invite { 50% { box-shadow: 0 0 0 14px var(--halo); } }
+	#time { font-size: 2.2rem; font-weight: 800; font-variant-numeric: tabular-nums; margin: 0; }
+	#hint { font-weight: 700; font-size: 1.1rem; margin: 0; }
+	#status { min-height: 1.4em; margin: .4rem 0 0; }
+	#status.err { color: var(--rec); font-weight: 600; }
+	#status.ok { color: var(--ok); }
+
+	ul { list-style: none; padding: 0; margin: 0; }
+	li { background: var(--surface); border-radius: 14px; padding: .75rem .85rem; margin-bottom: .6rem; display: grid; grid-template-columns: 1fr auto; gap: .2rem .6rem; align-items: center; }
+	li.fresh { outline: 2px solid var(--ok); }
+	li .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+	li audio { grid-column: 1 / -1; width: 100%; height: 40px; }
+	li .meta { grid-column: 1; }
+	li button.del { grid-row: 1; grid-column: 2; background: none; border: none; color: var(--muted); font-size: 1.2rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
+	.pending { color: #f2cc0c; }
+	button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+	#retry { margin-top: .6rem; background: var(--soft); color: var(--text); border: none; border-radius: 999px; padding: .6rem 1.1rem; font: inherit; font-weight: 700; display: none; }
+</style>
+</head>
+<body>
+<main>
+	<header>
+		<h1>Journal vocal</h1>
+		<a id="grafana" href="#">Tableau de bord ↗</a>
+	</header>
+
+	<section class="recorder" id="box">
+		<button id="mic" aria-label="Commencer un enregistrement" aria-pressed="false">
+			<svg id="ico-mic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+			<svg id="ico-stop" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="6" y="6" width="12" height="12" rx="3"/></svg>
+		</button>
+		<p id="hint">Touche pour enregistrer</p>
+		<p id="time" hidden>0:00</p>
+		<p id="status" class="muted" role="status"></p>
+		<button id="retry">Réessayer l’envoi</button>
+	</section>
+
+	<ul id="list"></ul>
+	<p class="muted" id="empty" hidden>Aucun mémo pour l’instant.</p>
+</main>
+
+<script>
+(() => {
+	// Adresses relatives : marche en local (localhost:8765/memos/app)
+	// comme sur le serveur (…/health/api/memos/app).
+	const BASE = location.pathname.replace(/\/app\/?$/, '');
+	const DEVICE = /Android/i.test(navigator.userAgent) ? 'android' : 'web';
+	const $ = (id) => document.getElementById(id);
+	const mic = $('mic'), box = $('box'), hint = $('hint'), timeEl = $('time'), statusEl = $('status'), list = $('list'), retryBtn = $('retry');
+	$('grafana').href = BASE.replace(/\/api\/memos$/, '/') || '/';
+	if ($('grafana').getAttribute('href') === BASE) $('grafana').hidden = true;
+
+	const fmt = (s) => { s = Math.max(0, Math.round(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+	const setStatus = (msg, cls = 'muted') => { statusEl.textContent = msg; statusEl.className = cls; };
+
+	// ---------- File d'attente locale : un mémo n'est jamais perdu si l'envoi échoue ----------
+	const idb = () => new Promise((res, rej) => {
+		const r = indexedDB.open('journal-vocal', 1);
+		r.onupgradeneeded = () => r.result.createObjectStore('outbox', { keyPath: 'key' });
+		r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+	});
+	async function outbox(mode, fn) {
+		const db = await idb();
+		return new Promise((res, rej) => {
+			const t = db.transaction('outbox', mode); const req = fn(t.objectStore('outbox'));
+			t.oncomplete = () => { db.close(); res(req && req.result); }; t.onerror = () => { db.close(); rej(t.error); };
+		});
+	}
+
+	async function send(item) {
+		const q = new URLSearchParams({ device: DEVICE, duration: item.duration.toFixed(1), recorded_at: item.at });
+		const r = await fetch(`${BASE}?${q}`, { method: 'POST', headers: { 'Content-Type': item.blob.type || 'audio/webm' }, body: item.blob, credentials: 'same-origin' });
+		if (!r.ok) throw new Error(await r.text().catch(() => r.status));
+		return r.json();
+	}
+
+	async function flush() {
+		let pending = [];
+		try { pending = await outbox('readonly', (s) => s.getAll()); } catch { return; }
+		if (!pending.length) { retryBtn.style.display = 'none'; return; }
+		setStatus(`Envoi de ${pending.length} mémo${pending.length > 1 ? 's' : ''}…`);
+		let lastId = null;
+		for (const item of pending) {
+			try {
+				lastId = (await send(item)).id;
+				await outbox('readwrite', (s) => s.delete(item.key));
+			} catch (e) {
+				setStatus('Pas envoyé (réseau ?). Le mémo est gardé sur le téléphone.', 'err');
+				retryBtn.style.display = 'inline-block';
+				return;
+			}
+		}
+		retryBtn.style.display = 'none';
+		setStatus('Enregistré ✓', 'ok');
+		await refresh(lastId);
+	}
+	retryBtn.onclick = flush;
+
+	// ---------- Enregistrement ----------
+	let mr = null, stream = null, ctx = null, chunks = [], raf = 0, tick = 0, startedAt = 0, stoppedAt = 0, wake = null, level = 0;
+
+	function pickType() {
+		return ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm']
+			.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+	}
+
+	async function start() {
+		if (mr) return;
+		setStatus('');
+		try {
+			stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+		} catch (e) {
+			setStatus(e && e.name === 'NotAllowedError' ? 'Micro bloqué : autorise-le dans les réglages du navigateur.' : 'Aucun micro disponible.', 'err');
+			return;
+		}
+		const type = pickType();
+		mr = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+		chunks = [];
+		mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+		mr.onstop = finish;
+		mr.start(1000);
+		try {
+			ctx = new AudioContext(); await ctx.resume();
+			const an = ctx.createAnalyser(); an.fftSize = 512;
+			ctx.createMediaStreamSource(stream).connect(an);
+			const buf = new Uint8Array(an.fftSize);
+			const loop = () => {
+				an.getByteTimeDomainData(buf);
+				let sum = 0; for (const v of buf) sum += ((v - 128) / 128) ** 2;
+				level = level * .7 + Math.min(1, Math.sqrt(sum / buf.length) * 5) * .3;
+				mic.style.setProperty('--lvl', level.toFixed(3));
+				raf = requestAnimationFrame(loop);
+			};
+			loop();
+		} catch { /* pas d'indicateur de niveau */ }
+		startedAt = Date.now();
+		timeEl.textContent = '0:00';
+		tick = setInterval(() => (timeEl.textContent = fmt((Date.now() - startedAt) / 1000)), 250);
+		ui(true);
+		navigator.vibrate && navigator.vibrate(30);
+		try { wake = await navigator.wakeLock.request('screen'); } catch { wake = null; }
+	}
+
+	function stop() {
+		if (!mr) return;
+		stoppedAt = Date.now();
+		if (mr.state !== 'inactive') mr.stop();
+		clearInterval(tick); cancelAnimationFrame(raf);
+		stream && stream.getTracks().forEach((t) => t.stop());
+		ctx && ctx.close().catch(() => {});
+		wake && wake.release().catch(() => {});
+		stream = ctx = wake = null;
+		mic.style.setProperty('--lvl', 0);
+		ui(false);
+		navigator.vibrate && navigator.vibrate([20, 40, 20]);
+	}
+
+	async function finish() {
+		const type = (mr && mr.mimeType) || 'audio/webm';
+		mr = null;
+		const duration = (stoppedAt - startedAt) / 1000;
+		if (duration < 0.8 || !chunks.length) { setStatus('Trop court, rien n’a été gardé.'); return; }
+		const blob = new Blob(chunks, { type: type.split(';')[0] });
+		const item = { key: String(Date.now()), at: new Date(startedAt).toISOString(), duration, blob };
+		try { await outbox('readwrite', (s) => s.put(item)); } catch { /* IndexedDB indisponible : envoi direct */
+			try { const m = await send(item); setStatus('Enregistré ✓', 'ok'); return refresh(m.id); }
+			catch { setStatus('Échec de l’envoi.', 'err'); return; }
+		}
+		flush();
+	}
+
+	function ui(on) {
+		box.classList.toggle('on', on); mic.classList.toggle('on', on);
+		mic.setAttribute('aria-pressed', on); mic.setAttribute('aria-label', on ? 'Arrêter l’enregistrement' : 'Commencer un enregistrement');
+		$('ico-mic').toggleAttribute('hidden', on); $('ico-stop').toggleAttribute('hidden', !on); // SVG : pas de propriété .hidden
+		hint.hidden = on; timeEl.hidden = !on;
+		if (on) setStatus('Touche pour terminer');
+	}
+
+	mic.onclick = () => (mr ? stop() : start());
+
+	// ---------- Liste ----------
+	async function refresh(freshId) {
+		let memos = [];
+		try {
+			const r = await fetch(`${BASE}?limit=30`, { credentials: 'same-origin' });
+			if (!r.ok) throw 0;
+			memos = await r.json();
+		} catch { setStatus('Serveur injoignable.', 'err'); return; }
+		list.replaceChildren(...memos.map((m) => item(m, m.id === freshId)));
+		$('empty').hidden = memos.length > 0;
+	}
+
+	const DEVICE_LABEL = { android: '📱', mint: '🖥️', web: '🌐' };
+	function item(m, fresh) {
+		const li = document.createElement('li');
+		if (fresh) li.className = 'fresh';
+		const title = document.createElement('span');
+		title.className = 'title'; title.textContent = m.title; title.title = 'Toucher pour renommer';
+		title.onclick = async () => {
+			const t = prompt('Nom du mémo', m.title);
+			if (!t || !t.trim() || t.trim() === m.title) return;
+			const r = await fetch(`${BASE}/${m.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t.trim() }), credentials: 'same-origin' });
+			if (r.ok) { m.title = t.trim(); title.textContent = m.title; }
+		};
+		const del = document.createElement('button');
+		del.className = 'del'; del.textContent = '🗑'; del.setAttribute('aria-label', 'Supprimer ' + m.title);
+		del.onclick = async () => {
+			if (!confirm(`Supprimer « ${m.title} » ?`)) return;
+			const r = await fetch(`${BASE}/${m.id}`, { method: 'DELETE', credentials: 'same-origin' });
+			if (r.ok) li.remove();
+		};
+		const meta = document.createElement('span');
+		meta.className = 'muted meta';
+		const d = new Date(m.recorded_at);
+		meta.textContent = `${DEVICE_LABEL[m.device] || ''} ${fmt(m.duration_s)} · ${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+		const audio = document.createElement('audio');
+		audio.controls = true; audio.preload = 'none'; audio.src = `${BASE}/${m.id}/audio`;
+		li.append(title, del, meta, audio);
+		return li;
+	}
+
+	refresh();
+	flush();
+	addEventListener('online', flush);
+	if (new URLSearchParams(location.search).has('go')) start();
+})();
+</script>
+</body>
+</html>
