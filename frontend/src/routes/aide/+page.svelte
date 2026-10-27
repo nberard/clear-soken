@@ -4,7 +4,7 @@
 	let wiped = $state(false);
 
 	function wipe() {
-		if (confirm('Effacer toutes tes notes et tes échelons de ce téléphone ?')) {
+		if (confirm('Effacer toutes tes notes, tes mémos vocaux et tes échelons de ce téléphone ?')) {
 			wipeAll();
 			wiped = true;
 		}
@@ -38,7 +38,7 @@
 
 <h2>Mes données</h2>
 <div class="card">
-	<p class="muted">Tes notes d’humeur et tes échelons sont seulement sur ce téléphone. Personne d’autre n’y a accès.</p>
+	<p class="muted">Tes notes d’humeur, tes mémos vocaux et tes échelons sont seulement sur ce téléphone. Personne d’autre n’y a accès.</p>
 	{#if wiped}
 		<p><strong>C’est effacé.</strong></p>
 	{:else}

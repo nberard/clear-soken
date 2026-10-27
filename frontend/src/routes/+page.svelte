@@ -39,6 +39,14 @@
 	</span>
 </a>
 
+<a class="card tile" href="/voix/">
+	<span class="big" aria-hidden="true">🎙️</span>
+	<span>
+		<strong>Le dire à voix haute</strong>
+		<span class="muted">Un mémo vocal, en un geste</span>
+	</span>
+</a>
+
 <a class="card tile" href="/echelons/">
 	<span class="big" aria-hidden="true">🪜</span>
 	<span>
@@ -55,7 +63,7 @@
 	</span>
 </a>
 
-<p class="muted privacy">🔒 Tes notes restent sur ton téléphone. Rien n’est envoyé.</p>
+<p class="muted privacy">🔒 Tes notes et mémos restent sur ton téléphone. Rien n’est envoyé.</p>
 
 <style>
 	.tile {

@@ -9,6 +9,7 @@
 		{ href: '/', label: 'Accueil', icon: '🏡' },
 		{ href: '/humeur/', label: 'Humeur', icon: '🌤️' },
 		{ href: '/respirer/', label: 'Respirer', icon: '🫧' },
+		{ href: '/voix/', label: 'Voix', icon: '🎙️' },
 		{ href: '/echelons/', label: 'Échelons', icon: '🪜' },
 		{ href: '/ressources/', label: 'Ressources', icon: '🤝' }
 	];
@@ -59,7 +60,7 @@
 		position: fixed;
 		inset: auto 0 0 0;
 		display: grid;
-		grid-template-columns: repeat(5, 1fr);
+		grid-template-columns: repeat(6, 1fr);
 		height: calc(var(--nav-h) + env(safe-area-inset-bottom));
 		padding-bottom: env(safe-area-inset-bottom);
 		background: var(--surface);
@@ -72,7 +73,7 @@
 		align-items: center;
 		justify-content: center;
 		gap: 2px;
-		font-size: 0.72rem;
+		font-size: 0.68rem;
 		color: var(--text-soft);
 		text-decoration: none;
 	}
