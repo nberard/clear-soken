@@ -6,6 +6,9 @@ services:
     image: clear-soken:latest
     container_name: clearsoken
     restart: unless-stopped
+    env_file:                         # prix des plans (PRIX_JOUR_CENTIMES…), voir .env.example
+      - path: .env
+        required: false
     volumes:
       - ./backend/data:/app/data:ro   # l'annuaire se modifie sans rebuild (puis : make restart)
     ports:

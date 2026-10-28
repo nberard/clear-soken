@@ -138,6 +138,20 @@ PC : python site_rapports.py publier ──rsync/SSH──► serveur : /home/ni
 Le QR code du site est dans `site/qr.png` côté PC, ou `make rapports-qr` côté serveur. Il mène à la page de
 connexion : sans le mot de passe, il ne donne accès à rien.
 
+## Prix des plans (`.env`)
+
+Un seul prix de référence, par jour, dans `.env` à la racine (copie de `.env.example`). L'API calcule le
+reste et le sert sur `/api/plans` ; la page `/offres/` l'affiche.
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `PRIX_JOUR_CENTIMES` | 2 | prix Premium par jour, en centimes |
+| `ESSAI_JOURS` | 30 | essai gratuit de Premium |
+| `REMISE_ANNUELLE_PCT` | 0 | remise sur le paiement annuel |
+
+Mois = jour × 365 / 12, an = jour × 365 − remise, arrondis au centime (2 → 0,61 €/mois, 7,30 €/an).
+Free et Dev sont gratuits. Après un changement : `make deploy`. Aucun paiement n'est branché pour l'instant.
+
 ## Pistes V2
 
 - Communauté d'anciens patients (groupes modérés, parrainage) : nécessite HDS, modération et protocole de crise
