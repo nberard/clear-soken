@@ -21,10 +21,12 @@ proxy:            ## démarre/recharge le reverse proxy Caddy (80/443)
 	cd proxy && docker compose up -d --force-recreate
 
 deploy:           ## build + démarrage de l'appli
+	@[ -f .env ] || { cp .env.example .env && echo "-> .env créé depuis .env.example (prix des plans)"; }
 	docker compose up -d --build
 
 update:           ## récupère la dernière version et redéploie
 	git pull
+	@[ -f .env ] || { cp .env.example .env && echo "-> .env créé depuis .env.example (prix des plans)"; }
 	docker compose up -d --build
 
 restart:          ## après modification de backend/data/resources.json
