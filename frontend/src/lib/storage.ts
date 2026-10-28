@@ -1,6 +1,8 @@
 // Toutes les données personnelles restent sur le téléphone (localStorage).
 // Rien n'est envoyé au serveur : pas de compte, pas de données de santé hébergées.
 
+import { wipeRecordings } from './recordings.ts';
+
 const PREFIX = 'clearsoken:';
 
 export function load<T>(key: string, fallback: T): T {
@@ -21,6 +23,7 @@ export function save<T>(key: string, value: T): void {
 }
 
 export function wipeAll(): void {
+	wipeRecordings();
 	try {
 		Object.keys(localStorage)
 			.filter((k) => k.startsWith(PREFIX))

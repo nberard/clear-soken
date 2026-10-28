@@ -11,6 +11,7 @@ Le patient scanne un QR code affiché dans le service : l'appli s'ouvre et s'ins
 | **Accueil** | Résumé du jour, invitation à installer l'appli |
 | **Humeur** | Météo intérieure en un geste + note libre, frise de la semaine |
 | **Respirer** | Cohérence cardiaque guidée (2 ou 5 min), exercice d'ancrage 5-4-3-2-1 |
+| **Ma voix** | Mémos vocaux en un geste : enregistrer, réécouter, renommer, partager. Raccourci « Enregistrer » sur l'icône de l'appli (appui long) |
 | **Échelons** | Petits pas en 4 paliers (soin de soi → autres → lien → sortie), personnalisables |
 | **Ressources** | Annuaire : écoute, GEM, Clubhouse, CMP, proches… |
 | **Besoin d'aide** | Toujours accessible : soignants, 3114, 15, 112, SMS 114. Effacement des données |
@@ -19,7 +20,7 @@ L'appli fonctionne hors ligne grâce au service worker.
 
 ## Confidentialité
 
-**Aucune donnée de santé n'est envoyée au serveur.** L'humeur et les échelons sont stockés uniquement sur le téléphone (`localStorage`). Le serveur ne sert que l'appli et l'annuaire public, et Caddy ne journalise pas les adresses IP.
+**Aucune donnée de santé n'est envoyée au serveur.** L'humeur et les échelons sont stockés uniquement sur le téléphone (`localStorage`), les mémos vocaux aussi (IndexedDB). Ils ne quittent le téléphone que si le patient choisit de les partager. Le serveur ne sert que l'appli et l'annuaire public, et Caddy ne journalise pas les adresses IP.
 
 Conséquence : la V1 n'a pas besoin d'un hébergeur certifié **HDS**. Dès que des données patient seront stockées côté serveur (comptes, communauté, partage avec les soignants), il faudra :
 - un hébergement HDS (OVH propose des offres dédiées) ;
