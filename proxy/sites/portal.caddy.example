@@ -1,0 +1,23 @@
+# --- Clearmind portal (site public, kraken-portal) ---
+# Activé par : make portal-proxy (copie ce fichier en sites/portal.caddy)
+# Variables dans proxy/.env : PORTAL_HOST (ex. clearmind.studio), PORTAL_DIR (clone de nberard/kraken-portal)
+{$PORTAL_HOST}, www.{$PORTAL_HOST} {
+	@www host www.{$PORTAL_HOST}
+	redir @www https://{$PORTAL_HOST}{uri} permanent
+
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+	log {
+		output discard
+	}
+
+	root * /srv/portal
+	# Le dossier est un clone git : on ne sert jamais l'historique ni les fichiers de config
+	file_server {
+		hide .git .gitignore *.md
+	}
+}

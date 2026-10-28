@@ -13,6 +13,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./sites:/etc/caddy/sites:ro   # sites optionnels (*.caddy)
+      - ${RAPPORTS_DIR:-./rapports}:/srv/rapports:ro   # rapports Clearmind (make rapports-proxy)
+      - ${PORTAL_DIR:-./portal}:/srv/portal:ro         # Clearmind portal (make portal-proxy)
       - caddy_data:/data        # certificats : à ne pas supprimer
       - caddy_config:/config
     networks:

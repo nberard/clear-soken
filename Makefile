@@ -1,7 +1,7 @@
 DOMAIN ?= clearsoken.touplitoui.me
 IMAGE  ?= touplitoui/clear-soken
 
-.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs
+.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-qr proxy-check portal-proxy portal-update
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -14,6 +14,9 @@ test:
 	cd backend && cargo test
 
 # --- Serveur ---
+proxy-check:      ## vérifie la config Caddy sans toucher au proxy en service
+	cd proxy && docker compose run --rm --no-deps -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
 proxy:            ## démarre/recharge le reverse proxy Caddy (80/443)
 	cd proxy && docker compose up -d --force-recreate
 
@@ -47,6 +50,31 @@ health-proxy:     ## active https://$$HEALTH_HOST dans Caddy (sous-domaine, ex. 
 
 health-logs:
 	$(HEALTH_COMPOSE) logs -f --tail=100
+
+# --- Rapports Clearmind (site privé), voir README ---
+RAPPORTS_HOST ?= rapports.touplitoui.me
+
+rapports-proxy:   ## active https://$$RAPPORTS_HOST (site privé des rapports Clearmind) dans Caddy
+	@d=$$(sed -n 's/^RAPPORTS_DIR=//p' proxy/.env); mkdir -p "$${d:-proxy/rapports}"
+	cp proxy/sites/rapports.caddy.example proxy/sites/rapports.caddy
+	$(MAKE) proxy-check
+	$(MAKE) proxy
+
+rapports-qr:      ## QR code vers le site des rapports (sudo apt install qrencode)
+	qrencode -s 20 -m 2 -o qr-rapports.png "https://$(RAPPORTS_HOST)/"
+	@echo "-> qr-rapports.png"
+
+# --- Clearmind portal (site public, nberard/kraken-portal), voir README ---
+portal-proxy:     ## active https://$$PORTAL_HOST (clone kraken-portal dans PORTAL_DIR si absent)
+	@d=$$(sed -n 's/^PORTAL_DIR=//p' proxy/.env); \
+	  [ -n "$$d" ] || { echo "Ajoute PORTAL_DIR=/home/nico/dev/kraken-portal dans proxy/.env"; exit 1; }; \
+	  [ -d "$$d/.git" ] || git clone https://github.com/nberard/kraken-portal "$$d"
+	cp proxy/sites/portal.caddy.example proxy/sites/portal.caddy
+	$(MAKE) proxy-check
+	$(MAKE) proxy
+
+portal-update:    ## récupère la dernière version du portal (aucun redémarrage nécessaire)
+	@d=$$(sed -n 's/^PORTAL_DIR=//p' proxy/.env); git -C "$$d" pull --ff-only
 
 # --- Optionnel : construire sur le PC et publier sur Docker Hub ---
 push:
