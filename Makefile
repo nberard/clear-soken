@@ -56,8 +56,12 @@ RAPPORTS_HOST ?= rapports.touplitoui.me
 
 rapports-proxy:   ## active https://$$RAPPORTS_HOST (site privé des rapports Clearmind) dans Caddy
 	@d=$$(sed -n 's/^RAPPORTS_DIR=//p' proxy/.env); mkdir -p "$${d:-proxy/rapports}"
+	@grep -Eq "^RAPPORTS_AUTH_HASH='\$$2[aby]\$$[0-9]{2}\$$.{53}'" proxy/.env || { \
+	  echo "RAPPORTS_AUTH_HASH invalide dans proxy/.env : colle le hash bcrypt complet (60 caractères, commence par \$$2a\$$)"; \
+	  echo "entre apostrophes, sur une seule ligne. Pour le créer :"; \
+	  echo "  docker run --rm caddy:2 caddy hash-password --plaintext 'ton-mot-de-passe'"; exit 1; }
 	cp proxy/sites/rapports.caddy.example proxy/sites/rapports.caddy
-	$(MAKE) proxy-check
+	$(MAKE) proxy-check || { rm -f proxy/sites/rapports.caddy; echo "-> config rapports retirée, Caddy inchangé"; exit 1; }
 	$(MAKE) proxy
 
 rapports-qr:      ## QR code vers le site des rapports (sudo apt install qrencode)
@@ -70,7 +74,7 @@ portal-proxy:     ## active https://$$PORTAL_HOST (clone kraken-portal dans PORT
 	  [ -n "$$d" ] || { echo "Ajoute PORTAL_DIR=/home/nico/dev/kraken-portal dans proxy/.env"; exit 1; }; \
 	  [ -d "$$d/.git" ] || git clone https://github.com/nberard/kraken-portal "$$d"
 	cp proxy/sites/portal.caddy.example proxy/sites/portal.caddy
-	$(MAKE) proxy-check
+	$(MAKE) proxy-check || { rm -f proxy/sites/portal.caddy; echo "-> config portal retirée, Caddy inchangé"; exit 1; }
 	$(MAKE) proxy
 
 portal-update:    ## récupère la dernière version du portal (aucun redémarrage nécessaire)
