@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-qr proxy-check portal-proxy portal-update
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -69,19 +69,32 @@ health-logs:
 # --- Rapports Clearmind (site privé), voir README ---
 RAPPORTS_HOST ?= rapports.touplitoui.me
 
-rapports-proxy:   ## active https://$$RAPPORTS_HOST (site privé des rapports Clearmind) dans Caddy
+rapports-proxy:   ## active le site des rapports (lien secret, sans mot de passe) dans Caddy et affiche le lien
 	@d=$$(sed -n 's/^RAPPORTS_DIR=//p' proxy/.env); mkdir -p "$${d:-proxy/rapports}"
-	@grep -Eq "^RAPPORTS_AUTH_HASH='\$$2[aby]\$$[0-9]{2}\$$.{53}'" proxy/.env || { \
-	  echo "RAPPORTS_AUTH_HASH invalide dans proxy/.env : colle le hash bcrypt complet (60 caractères, commence par \$$2a\$$)"; \
-	  echo "entre apostrophes, sur une seule ligne. Pour le créer :"; \
-	  echo "  docker run --rm caddy:2 caddy hash-password --plaintext 'ton-mot-de-passe'"; exit 1; }
+	@grep -Eq '^RAPPORTS_SECRET=[A-Za-z0-9]{32,}$$' proxy/.env || $(MAKE) -s rapports-nouveau-lien NO_RELOAD=1
 	cp proxy/sites/rapports.caddy.example proxy/sites/rapports.caddy
 	$(MAKE) proxy-check || { rm -f proxy/sites/rapports.caddy; echo "-> config rapports retirée, Caddy inchangé"; exit 1; }
 	$(MAKE) proxy
+	@$(MAKE) -s rapports-lien
 
-rapports-qr:      ## QR code vers le site des rapports (sudo apt install qrencode)
-	qrencode -s 20 -m 2 -o qr-rapports.png "https://$(RAPPORTS_HOST)/"
-	@echo "-> qr-rapports.png"
+rapports-nouveau-lien: ## crée un nouveau lien secret (l'ancien cesse de marcher) et recharge Caddy
+	@s=$$(openssl rand -hex 20); \
+	  if grep -q '^RAPPORTS_SECRET=' proxy/.env; then sed -i "s/^RAPPORTS_SECRET=.*/RAPPORTS_SECRET=$$s/" proxy/.env; \
+	  else echo "RAPPORTS_SECRET=$$s" >> proxy/.env; fi; \
+	  sed -i '/^RAPPORTS_AUTH_\(USER\|HASH\)=/d' proxy/.env; \
+	  echo "-> nouveau lien secret enregistré dans proxy/.env"
+	@[ -n "$(NO_RELOAD)" ] || { $(MAKE) proxy && $(MAKE) -s rapports-lien; }
+
+rapports-lien:    ## affiche le lien secret des rapports (à mettre dans RAPPORTS_URL côté PC)
+	@h=$$(sed -n 's/^RAPPORTS_HOST=//p' proxy/.env); s=$$(sed -n 's/^RAPPORTS_SECRET=//p' proxy/.env); \
+	  echo; echo "  Lien des rapports : https://$${h:-$(RAPPORTS_HOST)}/$$s/"; \
+	  echo "  Sur le PC, dans social_analytics/.env : RAPPORTS_URL=https://$${h:-$(RAPPORTS_HOST)}/$$s/"; \
+	  echo "  Ne le partage qu'avec qui doit lire les rapports. QR code : make rapports-qr"; echo
+
+rapports-qr:      ## QR code du lien secret (sudo apt install qrencode) — à garder pour soi
+	@h=$$(sed -n 's/^RAPPORTS_HOST=//p' proxy/.env); s=$$(sed -n 's/^RAPPORTS_SECRET=//p' proxy/.env); \
+	  qrencode -s 20 -m 2 -o qr-rapports.png "https://$${h:-$(RAPPORTS_HOST)}/$$s/" && echo "-> qr-rapports.png"; \
+	  qrencode -t ANSIUTF8 "https://$${h:-$(RAPPORTS_HOST)}/$$s/"
 
 # --- Clearmind portal (site public, nberard/kraken-portal), voir README ---
 portal-proxy:     ## active https://$$PORTAL_HOST (clone kraken-portal dans PORTAL_DIR si absent)

@@ -1,6 +1,8 @@
 # --- Rapports Clearmind (site privé, perso) ---
-# Activé par : make rapports-proxy (copie ce fichier en sites/rapports.caddy)
-# Variables dans proxy/.env : RAPPORTS_HOST, RAPPORTS_AUTH_USER, RAPPORTS_AUTH_HASH, RAPPORTS_DIR
+# Activé par : make rapports-proxy (copie ce fichier en sites/rapports.caddy, crée le lien secret au besoin)
+# Variables dans proxy/.env : RAPPORTS_HOST, RAPPORTS_SECRET, RAPPORTS_DIR
+# Accès par lien secret, sans mot de passe : https://RAPPORTS_HOST/RAPPORTS_SECRET/ (QR code : make rapports-qr).
+# Toute autre adresse répond 404. Nouveau lien si l'ancien a circulé : make rapports-nouveau-lien.
 # Contenu envoyé depuis le PC par clearmind-tools (python site_rapports.py publier) : seulement des rapports
 # HTML/PDF, jamais les exports bruts. Sans lien avec l'appli patients.
 {$RAPPORTS_HOST} {
@@ -8,6 +10,7 @@
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Robots-Tag "noindex, nofollow"
+		# Le lien secret n'est jamais transmis aux sites ouverts depuis un rapport
 		Referrer-Policy "no-referrer"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
@@ -17,11 +20,12 @@
 		output discard
 	}
 
-	# Tout le site est derrière un mot de passe (le QR code mène à la page de connexion)
-	basic_auth {
-		{$RAPPORTS_AUTH_USER} {$RAPPORTS_AUTH_HASH}
+	redir /{$RAPPORTS_SECRET} /{$RAPPORTS_SECRET}/ 308
+	handle_path /{$RAPPORTS_SECRET}/* {
+		root * /srv/rapports
+		file_server
 	}
-
-	root * /srv/rapports
-	file_server
+	handle {
+		respond 404
+	}
 }
