@@ -3,6 +3,7 @@
 //!   PRIX_JOUR_CENTIMES=2       prix Premium par jour, en centimes d'euro (défaut : 2)
 //!   ESSAI_JOURS=30             essai gratuit de Premium, en jours (défaut : 30)
 //!   REMISE_ANNUELLE_PCT=0      remise sur le paiement annuel, en % (défaut : 0)
+//!   PRIX_PAQUET_CENTIMES=1300  prix d'un paquet de cigarettes, pour la comparaison humoristique de /offres/
 //!
 //! Mois = jour × 365 / 12, an = jour × 365 − remise, arrondis au centime.
 
@@ -14,6 +15,8 @@ pub struct Pricing {
     pub prix_jour_centimes: u32,
     pub essai_jours: u32,
     pub remise_annuelle_pct: u32,
+    /// Prix d'un paquet de cigarettes (comparaison affichée sur /offres/).
+    pub paquet_centimes: u32,
     pub plans: Vec<Plan>,
 }
 
@@ -52,6 +55,7 @@ impl Pricing {
             prix_jour_centimes,
             essai_jours,
             remise_annuelle_pct,
+            paquet_centimes: 1300,
             plans: vec![
                 free("free", "Free", false),
                 Plan {
@@ -69,11 +73,13 @@ impl Pricing {
     }
 
     pub fn from_env() -> Self {
-        Self::new(
+        let mut p = Self::new(
             var("PRIX_JOUR_CENTIMES", 2),
             var("ESSAI_JOURS", 30),
             var("REMISE_ANNUELLE_PCT", 0),
-        )
+        );
+        p.paquet_centimes = var("PRIX_PAQUET_CENTIMES", 1300);
+        p
     }
 }
 

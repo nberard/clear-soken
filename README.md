@@ -148,6 +148,7 @@ reste et le sert sur `/api/plans` ; la page `/offres/` l'affiche.
 | `PRIX_JOUR_CENTIMES` | 2 | prix Premium par jour, en centimes |
 | `ESSAI_JOURS` | 30 | essai gratuit de Premium |
 | `REMISE_ANNUELLE_PCT` | 0 | remise sur le paiement annuel |
+| `PRIX_PAQUET_CENTIMES` | 1300 | prix d'un paquet de cigarettes, pour la comparaison (humoristique) de `/offres/` |
 
 Mois = jour × 365 / 12, an = jour × 365 − remise, arrondis au centime (2 → 0,61 €/mois, 7,30 €/an).
 Free et Dev sont gratuits. Après un changement : `make deploy`. Aucun paiement n'est branché pour l'instant.

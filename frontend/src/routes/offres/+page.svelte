@@ -10,7 +10,7 @@
 		essai_jours: number;
 		sur_invitation: boolean;
 	};
-	type Pricing = { devise: string; plans: Plan[] };
+	type Pricing = { devise: string; paquet_centimes: number; plans: Plan[] };
 
 	// Ce que contient chaque plan (les prix, eux, viennent de l'API : PRIX_JOUR_CENTIMES dans .env)
 	const details: Record<string, string[]> = {
@@ -39,6 +39,18 @@
 
 	const euros = (c: number) =>
 		(c / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+
+	// Comparaison humoristique : combien de paquets de cigarettes vaut un an de Premium
+	function enPaquets(an: number, paquet: number): string {
+		if (!paquet) return '';
+		const n = an / paquet;
+		if (n < 0.95) {
+			const pct = Math.round(n * 100);
+			return `Un an de Premium, c’est ${pct} % d’un paquet de cigarettes. Et lui ne fait pas tousser.`;
+		}
+		const fois = n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+		return `Un an de Premium, c’est ${fois} paquet${n >= 1.95 ? 's' : ''} de cigarettes. Sauf que lui ne part pas en fumée.`;
+	}
 </script>
 
 <h1>Offres</h1>
@@ -59,6 +71,7 @@
 						ou {euros(plan.an_centimes)} / an · soit {euros(plan.jour_centimes)} par jour
 					</p>
 					{#if plan.essai_jours > 0}<p class="trial">{plan.essai_jours} jours gratuits, sans carte</p>{/if}
+					{#if pricing.paquet_centimes}<p class="clope">🚭 {enPaquets(plan.an_centimes, pricing.paquet_centimes)}</p>{/if}
 				{:else}
 					<p class="price">Gratuit</p>
 					{#if plan.sur_invitation}<p class="muted">Sur invitation</p>{/if}
@@ -85,6 +98,7 @@
 		border-radius: 999px;
 	}
 	.main { outline: 2px solid var(--accent); }
+	.clope { font-size: 0.85rem; font-style: italic; color: var(--text-soft); margin: 0.5rem 0 0; }
 	ul { margin: 0.6rem 0 0; padding-left: 1.2rem; }
 	.list { display: grid; gap: 0.75rem; }
 </style>
