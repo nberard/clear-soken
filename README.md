@@ -84,6 +84,7 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 | `make restart` | après modification de `backend/data/resources.json` |
 | `make logs` | journaux de l'appli |
 | `make proxy` | après modification de `proxy/Caddyfile` ou `proxy/.env` |
+| `make proxy-check` | vérifie la config Caddy avant de recharger (sans couper les sites) |
 | `make qr` | QR code à afficher dans le service (`sudo apt install qrencode`) |
 
 Pour ajouter un autre site plus tard : un nouveau bloc dans `proxy/Caddyfile`, le conteneur sur le réseau `proxy`, puis `make proxy`.
@@ -95,6 +96,31 @@ Si le serveur est lent à compiler, construis l'image sur ton PC et publie-la : 
 ## À côté : tableau de bord santé perso (`mint-health/`)
 
 Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://health.touplitoui.me` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).
+
+## À côté : rapports Clearmind (site privé, perso)
+
+Projet séparé, sans lien avec l'appli patients : les rapports d'activité produits par
+[`clearmind-tools`](https://github.com/nberard/clearmind-tools) (`social_analytics/site_rapports.py`), consultables
+sur `https://rapports.touplitoui.me` derrière un mot de passe. Le serveur ne reçoit **que les rapports** (HTML, PDF) :
+les exports bruts restent sur le PC. Caddy sert simplement le dossier, sans journal d'accès et avec `noindex`.
+
+```
+PC : python site_rapports.py publier ──rsync/SSH──► serveur : /home/nico/clearmind-rapports ──► Caddy (mot de passe) ──► rapports.touplitoui.me
+```
+
+### Mise en place (une fois)
+
+1. **DNS** : enregistrement **A** `rapports.touplitoui.me` vers l'IP du serveur.
+2. **Mot de passe** : `docker run --rm caddy:2 caddy hash-password --plaintext 'ton-mot-de-passe'`, puis dans
+   `proxy/.env` : `RAPPORTS_HOST`, `RAPPORTS_AUTH_USER`, `RAPPORTS_AUTH_HASH` (entre apostrophes) et
+   `RAPPORTS_DIR=/home/nico/clearmind-rapports` (voir `proxy/.env.example`).
+3. **Activer le site** : `git pull && make rapports-proxy`. La config est vérifiée (`make proxy-check`) avant de
+   recharger Caddy, pour ne jamais couper l'appli patients sur une erreur.
+4. **Sur le PC**, dans `clearmind-tools/social_analytics/.env` :
+   `RAPPORTS_SERVEUR=nico@IP_DU_SERVEUR:/home/nico/clearmind-rapports`, puis `python site_rapports.py publier`.
+
+Le QR code du site est dans `site/qr.png` côté PC, ou `make rapports-qr` côté serveur. Il mène à la page de
+connexion : sans le mot de passe, il ne donne accès à rien.
 
 ## Pistes V2
 

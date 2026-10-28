@@ -1,7 +1,7 @@
 DOMAIN ?= clearsoken.touplitoui.me
 IMAGE  ?= touplitoui/clear-soken
 
-.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs
+.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-qr proxy-check
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -14,6 +14,9 @@ test:
 	cd backend && cargo test
 
 # --- Serveur ---
+proxy-check:      ## vérifie la config Caddy sans toucher au proxy en service
+	cd proxy && docker compose run --rm --no-deps -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
 proxy:            ## démarre/recharge le reverse proxy Caddy (80/443)
 	cd proxy && docker compose up -d --force-recreate
 
@@ -47,6 +50,19 @@ health-proxy:     ## active https://$$HEALTH_HOST dans Caddy (sous-domaine, ex. 
 
 health-logs:
 	$(HEALTH_COMPOSE) logs -f --tail=100
+
+# --- Rapports Clearmind (site privé), voir README ---
+RAPPORTS_HOST ?= rapports.touplitoui.me
+
+rapports-proxy:   ## active https://$$RAPPORTS_HOST (site privé des rapports Clearmind) dans Caddy
+	@d=$$(sed -n 's/^RAPPORTS_DIR=//p' proxy/.env); mkdir -p "$${d:-proxy/rapports}"
+	cp proxy/sites/rapports.caddy.example proxy/sites/rapports.caddy
+	$(MAKE) proxy-check
+	$(MAKE) proxy
+
+rapports-qr:      ## QR code vers le site des rapports (sudo apt install qrencode)
+	qrencode -s 20 -m 2 -o qr-rapports.png "https://$(RAPPORTS_HOST)/"
+	@echo "-> qr-rapports.png"
 
 # --- Optionnel : construire sur le PC et publier sur Docker Hub ---
 push:
