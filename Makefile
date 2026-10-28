@@ -1,7 +1,9 @@
 DOMAIN ?= clearsoken.touplitoui.me
-IMAGE  ?= touplitoui/clear-soken
+IMAGE  ?= ghcr.io/nberard/clear-soken
+TAG    ?= latest
+export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-qr proxy-check portal-proxy portal-update
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-qr proxy-check portal-proxy portal-update
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -20,14 +22,19 @@ proxy-check:      ## vérifie la config Caddy sans toucher au proxy en service
 proxy:            ## démarre/recharge le reverse proxy Caddy (80/443)
 	cd proxy && docker compose up -d --force-recreate
 
-deploy:           ## build + démarrage de l'appli
+deploy:           ## télécharge l'image construite par GitHub Actions et (re)démarre l'appli (TAG=sha-… pour une version précise)
 	@[ -f .env ] || { cp .env.example .env && echo "-> .env créé depuis .env.example (prix des plans)"; }
-	docker compose up -d --build
+	docker compose pull clearsoken
+	docker compose up -d clearsoken
+	@docker image prune -f >/dev/null
 
-update:           ## récupère la dernière version et redéploie
+update:           ## récupère la dernière version du dépôt (compose, .env.example) et redéploie
 	git pull
+	$(MAKE) deploy
+
+build-local:      ## secours : construit l'image sur cette machine au lieu de la télécharger
 	@[ -f .env ] || { cp .env.example .env && echo "-> .env créé depuis .env.example (prix des plans)"; }
-	docker compose up -d --build
+	docker compose up -d --build clearsoken
 
 restart:          ## après modification de backend/data/resources.json
 	docker compose restart clearsoken
@@ -82,7 +89,7 @@ portal-proxy:     ## active https://$$PORTAL_HOST (clone kraken-portal dans PORT
 portal-update:    ## récupère la dernière version du portal (aucun redémarrage nécessaire)
 	@d=$$(sed -n 's/^PORTAL_DIR=//p' proxy/.env); git -C "$$d" pull --ff-only
 
-# --- Optionnel : construire sur le PC et publier sur Docker Hub ---
+# --- Secours : construire sur le PC et publier sur ghcr.io (d'habitude, GitHub Actions s'en charge) ---
 push:
-	docker build -t $(IMAGE):latest .
+	docker build --platform linux/amd64 -t $(IMAGE):latest .
 	docker push $(IMAGE):latest

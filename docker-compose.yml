@@ -2,8 +2,10 @@
 # qu'il faut démarrer avant : voir README.
 services:
   clearsoken:
+    # Image construite par GitHub Actions (.github/workflows/image.yml) ; make deploy la télécharge.
+    # make deploy TAG=sha-abc1234 pour revenir à une version précise ; make build-local pour construire ici.
+    image: ghcr.io/nberard/clear-soken:${TAG:-latest}
     build: .
-    image: clear-soken:latest
     container_name: clearsoken
     restart: unless-stopped
     env_file: .env                    # prix des plans (PRIX_JOUR_CENTIMES…), créé depuis .env.example par make deploy

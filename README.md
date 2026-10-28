@@ -72,7 +72,8 @@ cd /home/nico/dev
 git clone https://github.com/nberard/clear-soken && cd clear-soken
 cp proxy/.env.example proxy/.env && nano proxy/.env   # ton email
 make proxy     # Caddy (crée aussi le réseau Docker "proxy")
-make deploy    # build + démarrage de Clear Soken (quelques minutes la 1re fois)
+docker login ghcr.io -u nberard   # une seule fois (voir « Image Docker » ci-dessous)
+make deploy    # télécharge l'image et démarre Clear Soken (quelques secondes)
 ```
 
 Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minute).
@@ -81,7 +82,10 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 
 | Commande | Effet |
 |---|---|
-| `make update` | `git pull` + rebuild + redémarrage |
+| `make deploy` | télécharge la dernière image (construite par GitHub Actions) et redémarre |
+| `make deploy TAG=sha-abc1234` | revient à la version d'un commit précis |
+| `make update` | `git pull` (compose, `.env.example`) puis `make deploy` |
+| `make build-local` | secours : construit l'image sur le serveur (plusieurs minutes) |
 | `make restart` | après modification de `backend/data/resources.json` |
 | `make logs` | journaux de l'appli |
 | `make proxy` | après modification de `proxy/Caddyfile` ou `proxy/.env` |
@@ -91,9 +95,21 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 
 Pour ajouter un autre site plus tard : un nouveau bloc dans `proxy/Caddyfile`, le conteneur sur le réseau `proxy`, puis `make proxy`.
 
-### Optionnel : Docker Hub
+### Image Docker (GitHub Actions → ghcr.io)
 
-Si le serveur est lent à compiler, construis l'image sur ton PC et publie-la : `docker login` puis `make push` (image `touplitoui/clear-soken`, à créer en **privé** sur Docker Hub). Sur le serveur, remplace `build: .` par `image: touplitoui/clear-soken:latest` dans `docker-compose.yml`, puis `docker compose pull && docker compose up -d`.
+Le serveur ne compile rien. À chaque fusion dans `main`, GitHub Actions (`.github/workflows/image.yml`) lance les tests
+(front et API), construit l'image et la publie sur GitHub Container Registry :
+
+- `ghcr.io/nberard/clear-soken:latest` : dernière version de `main` ;
+- `ghcr.io/nberard/clear-soken:sha-<commit>` : chaque version, pour revenir en arrière.
+
+Sur une PR, l'image est construite (pour vérifier qu'elle compile) mais pas publiée.
+
+**Une seule fois sur le serveur** : crée un jeton GitHub (Settings → Developer settings → Personal access tokens →
+Tokens (classic), droit `read:packages` uniquement), puis `docker login ghcr.io -u nberard` avec ce jeton comme mot de
+passe. Docker le garde dans `~/.docker/config.json`.
+
+Secours sans GitHub Actions : `make build-local` sur le serveur, ou `make push` depuis ton PC (après `docker login ghcr.io`).
 
 ## À côté : tableau de bord santé perso (`mint-health/`)
 
