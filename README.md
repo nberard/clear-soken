@@ -138,6 +138,23 @@ PC : python site_rapports.py publier ──rsync/SSH──► serveur : /home/ni
 Le QR code du site est dans `site/qr.png` côté PC, ou `make rapports-qr` côté serveur. Il mène à la page de
 connexion : sans le mot de passe, il ne donne accès à rien.
 
+## Ma sortie (`/sortie/`)
+
+Préparer une sortie de clinique, d'une semaine thérapeutique à plusieurs mois, **avec l'équipe soignante** :
+
+1. **Le cadre** : date de sortie, attentes, durée totale, fréquence de changement de lieu.
+2. **Les séjours** : pour chacun, ce qu'on y cherche (repos, sport, être entouré·e, nature, créer), le cadre, avec qui,
+   le budget. L'appli prépare une **recherche Airbnb pré-remplie** (dates, budget, chambre chez l'habitant) : Airbnb
+   n'ouvre pas la réservation aux applis tierces, c'est la personne qui réserve. Liens vers le CMP et les urgences
+   psychiatriques proches de chaque lieu.
+3. **Le filet de sécurité** : rendez-vous de suivi, traitement et ordonnance pour toute la durée, personne de
+   confiance, signes d'alerte et ce qui aide, numéros d'urgence (3114, 15, 112).
+4. **Le document pour le psychologue et le psychiatre** (`/sortie/export/`) : le plan, et en option l'humeur des
+   30 derniers jours ; à imprimer ou à enregistrer en PDF. Il signale ce qui manque encore.
+
+Comme le reste de l'appli, **tout reste sur le téléphone** : rien n'est envoyé au serveur. La logique est testée
+sans navigateur : `cd frontend && npm test`.
+
 ## Prix des plans (`.env`)
 
 Un seul prix de référence, par jour, dans `.env` à la racine (copie de `.env.example`). L'API calcule le
