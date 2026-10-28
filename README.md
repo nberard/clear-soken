@@ -133,26 +133,31 @@ Le dossier `.git` et les fichiers de configuration du clone ne sont jamais servi
 
 Projet séparé, sans lien avec l'appli patients : les rapports d'activité produits par
 [`clearmind-tools`](https://github.com/nberard/clearmind-tools) (`social_analytics/site_rapports.py`), consultables
-sur `https://rapports.touplitoui.me` derrière un mot de passe. Le serveur ne reçoit **que les rapports** (HTML, PDF) :
+sur `https://rapports.touplitoui.me/<lien secret>/`, sans mot de passe : seule l'adresse secrète ouvre le site. Le serveur ne reçoit **que les rapports** (HTML, PDF) :
 les exports bruts restent sur le PC. Caddy sert simplement le dossier, sans journal d'accès et avec `noindex`.
 
 ```
-PC : python site_rapports.py publier ──rsync/SSH──► serveur : /home/nico/clearmind-rapports ──► Caddy (mot de passe) ──► rapports.touplitoui.me
+PC : python site_rapports.py publier ──rsync/SSH──► serveur : /home/nico/clearmind-rapports ──► Caddy (lien secret) ──► rapports.touplitoui.me
 ```
 
 ### Mise en place (une fois)
 
 1. **DNS** : enregistrement **A** `rapports.touplitoui.me` vers l'IP du serveur.
-2. **Mot de passe** : `docker run --rm caddy:2 caddy hash-password --plaintext 'ton-mot-de-passe'`, puis dans
-   `proxy/.env` : `RAPPORTS_HOST`, `RAPPORTS_AUTH_USER`, `RAPPORTS_AUTH_HASH` (entre apostrophes) et
-   `RAPPORTS_DIR=/home/nico/clearmind-rapports` (voir `proxy/.env.example`).
-3. **Activer le site** : `git pull && make rapports-proxy`. La config est vérifiée (`make proxy-check`) avant de
-   recharger Caddy, pour ne jamais couper l'appli patients sur une erreur.
-4. **Sur le PC**, dans `clearmind-tools/social_analytics/.env` :
+2. **Activer le site** : `git pull && make rapports-proxy`. La commande crée le lien secret (40 caractères
+   aléatoires, dans `proxy/.env`), vérifie la config (`make proxy-check`) avant de recharger Caddy, puis **affiche le
+   lien**. Toute autre adresse du sous-domaine répond 404.
+3. **Sur le PC**, dans `clearmind-tools/social_analytics/.env` : `RAPPORTS_URL=<le lien affiché>` et
    `RAPPORTS_SERVEUR=nico@IP_DU_SERVEUR:/home/nico/clearmind-rapports`, puis `python site_rapports.py publier`.
 
-Le QR code du site est dans `site/qr.png` côté PC, ou `make rapports-qr` côté serveur. Il mène à la page de
-connexion : sans le mot de passe, il ne donne accès à rien.
+| Commande | Effet |
+|---|---|
+| `make rapports-lien` | réaffiche le lien |
+| `make rapports-qr` | QR code du lien (`qr-rapports.png` et dans le terminal) |
+| `make rapports-nouveau-lien` | nouveau lien si l'ancien a circulé : l'ancien cesse aussitôt de marcher (mettre à jour `RAPPORTS_URL` sur le PC) |
+
+Le lien donne accès à tout : ne le partage qu'avec qui doit lire les rapports (soignant). Il n'est transmis à aucun
+site ouvert depuis un rapport (`Referrer-Policy: no-referrer`), n'apparaît dans aucun journal et le site n'est pas
+indexé.
 
 ## Ma sortie (`/sortie/`)
 
