@@ -83,15 +83,19 @@ rapports-nouveau-lien: ## crée un nouveau lien secret (l'ancien cesse de marche
 	  else echo "RAPPORTS_SECRET=$$s" >> proxy/.env; fi; \
 	  sed -i '/^RAPPORTS_AUTH_\(USER\|HASH\)=/d' proxy/.env; \
 	  echo "-> nouveau lien secret enregistré dans proxy/.env"
-	@[ -n "$(NO_RELOAD)" ] || { $(MAKE) proxy && $(MAKE) -s rapports-lien; }
+	@[ -n "$(NO_RELOAD)" ] || $(MAKE) rapports-proxy   # recopie la config (lien secret), la vérifie et recharge
 
 rapports-lien:    ## affiche le lien secret des rapports (à mettre dans RAPPORTS_URL côté PC)
+	@grep -Eq '^RAPPORTS_SECRET=[A-Za-z0-9]{32,}$$' proxy/.env || { \
+	  echo "Pas de lien secret valide dans proxy/.env : lance make rapports-nouveau-lien (crée le lien et recharge Caddy)"; exit 1; }
 	@h=$$(sed -n 's/^RAPPORTS_HOST=//p' proxy/.env); s=$$(sed -n 's/^RAPPORTS_SECRET=//p' proxy/.env); \
 	  echo; echo "  Lien des rapports : https://$${h:-$(RAPPORTS_HOST)}/$$s/"; \
 	  echo "  Sur le PC, dans social_analytics/.env : RAPPORTS_URL=https://$${h:-$(RAPPORTS_HOST)}/$$s/"; \
 	  echo "  Ne le partage qu'avec qui doit lire les rapports. QR code : make rapports-qr"; echo
 
 rapports-qr:      ## QR code du lien secret (sudo apt install qrencode) — à garder pour soi
+	@grep -Eq '^RAPPORTS_SECRET=[A-Za-z0-9]{32,}$$' proxy/.env || { \
+	  echo "Pas de lien secret valide dans proxy/.env : lance make rapports-nouveau-lien (crée le lien et recharge Caddy)"; exit 1; }
 	@h=$$(sed -n 's/^RAPPORTS_HOST=//p' proxy/.env); s=$$(sed -n 's/^RAPPORTS_SECRET=//p' proxy/.env); \
 	  qrencode -s 20 -m 2 -o qr-rapports.png "https://$${h:-$(RAPPORTS_HOST)}/$$s/" && echo "-> qr-rapports.png"; \
 	  qrencode -t ANSIUTF8 "https://$${h:-$(RAPPORTS_HOST)}/$$s/"
