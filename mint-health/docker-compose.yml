@@ -31,6 +31,7 @@ services:
       TOKEN_FILE: /data/token.json
     volumes:
       - tokens:/data
+      - memos:/data/memos   # journal vocal (fichiers audio)
     ports:
       - "127.0.0.1:8765:8765"
 
@@ -73,4 +74,5 @@ services:
 volumes:
   pgdata:
   tokens:
+  memos:
   grafana:

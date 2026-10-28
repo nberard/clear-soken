@@ -12,6 +12,7 @@
 - **sync** : connexion à ton compte Google (OAuth + PKCE), synchro toutes les 15 min des agrégats quotidiens (`dailyRollUp`) et des nuits de sommeil, stockage dans Postgres.
 - **Health Connect** (option) : les données de Google Fit, Samsung Health, montres… arrivent depuis le téléphone Android via l'appli « HC Webhook ». Voir [Google Fit et Health Connect](#google-fit-et-health-connect-téléphone-android).
 - **Grafana** : datasource et dashboard « Google Health » provisionnés automatiquement, panneaux transparents, consultation anonyme en lecture seule, embedding autorisé, rendu PNG.
+- **Journal vocal** : un clic pour enregistrer un mémo depuis la barre des tâches (applet), le téléphone Android (page web à ajouter à l'écran d'accueil) ou le navigateur ; tout arrive au même endroit et apparaît dans Grafana. Voir [Journal vocal](#journal-vocal).
 - **Applet Cinnamon** : pas du jour dans la barre, menu avec résumé + mini-graphique Grafana, bouton de connexion du compte, et dashboard complet dans une fenêtre sans bordure translucide ancrée au panneau.
 
 Tout tourne en local et n'écoute que sur `127.0.0.1`.
@@ -143,6 +144,61 @@ Les autres types sont ignorés (listés dans la réponse sous `ignored_types`). 
 
 **Plusieurs sources** : si Google Health et Health Connect donnent tous deux une valeur pour le même jour, le tableau de bord et l'applet affichent celle de la première source de `SOURCE_PRIORITY` (par défaut `google-health,health-connect`). Les nuits qui se chevauchent sont dédoublonnées de la même façon. Pour n'utiliser que Google Fit, mets `SOURCE_PRIORITY=health-connect,google-health`, ou ne connecte pas Google Health.
 
+## Journal vocal
+
+Dire une idée, une humeur, un rappel… en un geste, sur les trois plateformes. Les mémos arrivent tous dans le service de synchro et s'affichent dans Grafana.
+
+```
+ Applet Mint ──┐                                       ┌─▶ Grafana : minutes par jour, derniers mémos (lien « Écouter »)
+ Téléphone ────┼──▶ sync /memos ──▶ fichiers audio ────┤
+ Navigateur ───┘     (FastAPI)      + table voice_memos └─▶ page /memos/app : réécouter, renommer, supprimer
+```
+
+### Sur le PC (applet « Journal vocal »)
+
+```bash
+./install-applet.sh journal-vocal
+```
+
+Puis clic droit sur la barre des tâches → **Applets** → **Journal vocal** → **+**.
+
+| Geste | Effet |
+|---|---|
+| **Clic** sur le micro ou **Super+Alt+R** | Démarre l'enregistrement : point rouge et minuteur dans la barre |
+| **Clic** à nouveau | Arrête, garde le mémo dans `Musique/Journal vocal` et l'envoie au journal |
+| **Clic droit** | Derniers mémos (lecture), dossier, journal complet |
+
+Réglages (clic droit → Configurer) : raccourci clavier, dossier, arrêt automatique (30 min), adresse du service et identifiants (les mêmes que pour l'applet Google Health).
+Si le service est injoignable, le mémo reste dans le dossier (⏳ dans le menu) et part tout seul plus tard.
+L'enregistrement utilise GStreamer (Opus/Ogg), installé par le script s'il manque.
+
+### Sur le téléphone Android
+
+1. Ouvre `https://health.touplitoui.me/health/api/memos/app` dans Chrome (identifiant et mot de passe du serveur).
+2. Menu ⋮ → **Ajouter à l'écran d'accueil**. L'icône « Journal vocal » s'ouvre comme une appli.
+3. Touche le gros bouton pour parler, touche à nouveau pour terminer. Un appui long sur l'icône propose **Enregistrer** directement.
+
+Sans réseau, le mémo est gardé sur le téléphone et envoyé dès que la connexion revient.
+En local (sans serveur), la même page est sur <http://localhost:8765/memos/app>.
+
+### Dans Grafana
+
+Rangée **Journal vocal** du dashboard : minutes enregistrées par jour et par appareil, et la liste des derniers mémos. Clique sur un titre pour l'écouter. La liste déroulante **Journal vocal** en haut du dashboard indique où les écouter : `/health/api` sur le serveur, `http://localhost:8765` en local.
+
+### API
+
+| Requête | Effet |
+|---|---|
+| `POST /memos?device=mint&duration=12.5&title=…` | Corps = fichier audio brut (`Content-Type: audio/ogg`, `audio/webm`, `audio/mp4`…), 100 Mo max |
+| `GET /memos?limit=50` | Liste, du plus récent au plus ancien |
+| `GET /memos/{id}/audio` | Le fichier audio |
+| `PATCH /memos/{id}` `{"title": "…"}` | Renommer |
+| `DELETE /memos/{id}` | Supprimer (fichier compris) |
+
+Exemple : `curl -X POST -H 'Content-Type: audio/ogg' --data-binary @memo.ogg 'localhost:8765/memos?device=web'`
+
+**Sur le serveur**, après la mise à jour : `make health-deploy && make health-proxy` (la configuration Caddy ajoute les routes `/memos`).
+
 ## Données et dashboard
 
 | Table | Contenu |
@@ -152,6 +208,7 @@ Les autres types sont ignorés (listés dans la réponse sous `ignored_types`). 
 | `hc_records` | Enregistrements bruts reçus de Health Connect (pour recalculer les jours) |
 | vues `daily_best`, `sleep_best` | Une seule source par jour et par métrique, selon `SOURCE_PRIORITY` : c'est ce que lisent le dashboard et l'applet |
 | `sync_log` | Journal de chaque synchro (30 jours) |
+| `voice_memos` | Un mémo vocal par ligne : date, durée, titre, appareil (`mint`, `android`, `web`). L'audio est dans le volume Docker `memos` |
 
 Les types synchronisés sont dans `ROLLUP_TYPES` (`.env`). Un type non disponible pour ton appareil ou ton compte est ignoré et apparaît en ✗ dans le panneau **Journal de synchro** : retire-le de la liste ou corrige son identifiant (voir l'[index des types de données](https://developers.google.com/health/data-types)). Le panneau **Toutes les métriques** liste les noms exacts reçus, pratique pour créer tes propres panneaux :
 
@@ -168,7 +225,7 @@ Grafana se connecte avec le rôle `grafana_ro` (lecture seule). Le dashboard est
 docker compose logs -f sync                       # suivre la synchro
 curl -X POST 'localhost:8765/sync?full=true'      # re-télécharger tout l'historique (BACKFILL_DAYS)
 docker compose down                               # arrêter (les données restent)
-docker compose down -v                            # tout effacer, jeton Google compris
+docker compose down -v                            # tout effacer, jeton Google et mémos vocaux compris
 ```
 
 ## Dépannage
@@ -185,4 +242,4 @@ docker compose down -v                            # tout effacer, jeton Google c
 
 Le jeton Google est stocké dans le volume Docker `tokens` (fichier en `600`), les ports sont liés à `127.0.0.1` et Grafana n'autorise l'accès anonyme qu'en lecture. Ne publie pas ces ports sur le réseau sans ajouter une authentification.
 
-Sur le serveur, tout `health.touplitoui.me` est derrière le mot de passe de Caddy, sauf `/health/api/ingest/*` (POST uniquement, 20 Mo max) : le téléphone s'y authentifie avec `HC_INGEST_TOKEN`, comparé en temps constant. Garde ce jeton secret ; pour le changer, modifie `.env`, relance `make health-deploy` et mets à jour l'en-tête dans l'appli.
+Sur le serveur, tout `health.touplitoui.me` est derrière le mot de passe de Caddy, y compris le journal vocal (`/health/api/memos`), sauf `/health/api/ingest/*` (POST uniquement, 20 Mo max) : le téléphone s'y authentifie avec `HC_INGEST_TOKEN`, comparé en temps constant. Garde ce jeton secret ; pour le changer, modifie `.env`, relance `make health-deploy` et mets à jour l'en-tête dans l'appli.

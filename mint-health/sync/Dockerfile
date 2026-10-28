@@ -3,7 +3,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY healthsync ./healthsync
-RUN useradd -u 1000 -m app && mkdir -p /data && chown app /data
+RUN useradd -u 1000 -m app && mkdir -p /data/memos && chown -R app /data
 USER app
 EXPOSE 8765
 CMD ["uvicorn", "healthsync.main:app", "--host", "0.0.0.0", "--port", "8765"]

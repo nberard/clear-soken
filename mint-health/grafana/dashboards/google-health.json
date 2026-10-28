@@ -10,14 +10,41 @@
   "graphTooltip": 1,
   "refresh": "5m",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "time": {
     "from": "now-30d",
     "to": "now"
   },
   "timepicker": {},
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "memos_api",
+        "label": "Journal vocal",
+        "type": "custom",
+        "query": "/health/api,http://localhost:8765",
+        "current": {
+          "text": "/health/api",
+          "value": "/health/api"
+        },
+        "options": [
+          {
+            "text": "/health/api",
+            "value": "/health/api",
+            "selected": true
+          },
+          {
+            "text": "http://localhost:8765",
+            "value": "http://localhost:8765",
+            "selected": false
+          }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "description": "Adresse du service de synchro pour écouter les mémos : /health/api sur le serveur, http://localhost:8765 en local"
+      }
+    ]
   },
   "annotations": {
     "list": []
@@ -624,6 +651,181 @@
       },
       "options": {
         "showHeader": true
+      }
+    },
+    {
+      "id": 29,
+      "type": "row",
+      "title": "Journal vocal",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "panels": []
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Journal vocal : minutes enregistrées par jour",
+      "transparent": true,
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "healthpg"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "healthpg"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('day', recorded_at AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris' AS time, sum(coalesce(duration_s, 0)) FILTER (WHERE device = 'mint') / 60 AS \"PC (Mint)\", sum(coalesce(duration_s, 0)) FILTER (WHERE device = 'android') / 60 AS \"Téléphone\", sum(coalesce(duration_s, 0)) FILTER (WHERE device = 'web') / 60 AS \"Navigateur\" FROM voice_memos WHERE $__timeFilter(recorded_at) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "gradientMode": "opacity",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisBorderShow": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "table",
+      "title": "Derniers mémos (clic sur le titre pour écouter)",
+      "transparent": true,
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "healthpg"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "healthpg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT id, recorded_at AS \"Quand\", title AS \"Titre\", CASE device WHEN 'mint' THEN '🖥️ PC' WHEN 'android' THEN '📱 Téléphone' ELSE '🌐 Navigateur' END AS \"Depuis\", duration_s AS \"Durée\" FROM voice_memos WHERE $__timeFilter(recorded_at) ORDER BY recorded_at DESC LIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Durée"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Quand"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Titre"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Écouter",
+                    "url": "${memos_api}/memos/${__data.fields.id}/audio",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
       }
     }
   ]

@@ -1,0 +1,53 @@
+{
+  "head-rec": {
+    "type": "header",
+    "description": "Enregistrement"
+  },
+  "hotkey": {
+    "type": "keybinding",
+    "default": "<Super><Alt>r",
+    "description": "Raccourci clavier pour démarrer / arrêter"
+  },
+  "save-dir": {
+    "type": "filechooser",
+    "select-dir": true,
+    "default": "",
+    "description": "Dossier des mémos (vide = Musique/Journal vocal)"
+  },
+  "max-min": {
+    "type": "spinbutton",
+    "default": 30,
+    "min": 1,
+    "max": 240,
+    "step": 1,
+    "units": "minutes",
+    "description": "Arrêt automatique après"
+  },
+  "head-server": {
+    "type": "header",
+    "description": "Envoi vers mint-health"
+  },
+  "upload": {
+    "type": "switch",
+    "default": true,
+    "description": "Envoyer chaque mémo au journal vocal (Grafana, téléphone)"
+  },
+  "api-url": {
+    "type": "entry",
+    "default": "http://localhost:8765",
+    "description": "URL du service de synchro (serveur : https://health.touplitoui.me/health/api)",
+    "dependency": "upload"
+  },
+  "auth-user": {
+    "type": "entry",
+    "default": "",
+    "description": "Identifiant (si le serveur est protégé par mot de passe)",
+    "dependency": "upload"
+  },
+  "auth-password": {
+    "type": "entry",
+    "default": "",
+    "description": "Mot de passe",
+    "dependency": "upload"
+  }
+}
