@@ -55,6 +55,14 @@
 	</span>
 </a>
 
+<a class="card tile" href="/sortie/">
+	<span class="big" aria-hidden="true">🧳</span>
+	<span>
+		<strong>Préparer ma sortie</strong>
+		<span class="muted">Mes séjours, mon filet de sécurité, le document pour mon psy</span>
+	</span>
+</a>
+
 <a class="card tile" href="/ressources/">
 	<span class="big" aria-hidden="true">🤝</span>
 	<span>

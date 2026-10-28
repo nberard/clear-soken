@@ -4,6 +4,8 @@
 //! Les notes du patient restent sur son téléphone ; l'API ne sert que des
 //! contenus publics (annuaire de ressources).
 
+mod pricing;
+
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use axum::{
@@ -20,6 +22,8 @@ use tower_http::{
 };
 use tracing_subscriber::EnvFilter;
 
+pub use pricing::Pricing;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Resource {
     pub id: String,
@@ -34,6 +38,7 @@ pub struct Resource {
 #[derive(Clone)]
 pub struct AppState {
     pub resources: Arc<Vec<Resource>>,
+    pub pricing: Arc<Pricing>,
 }
 
 pub struct Config {
@@ -63,6 +68,11 @@ async fn health() -> &'static str {
     "ok"
 }
 
+/// Prix des plans Free / Premium / Dev, calculés depuis PRIX_JOUR_CENTIMES (.env).
+async fn plans(State(state): State<AppState>) -> Json<Pricing> {
+    Json(state.pricing.as_ref().clone())
+}
+
 async fn list_resources(State(state): State<AppState>) -> Json<Vec<Resource>> {
     Json(state.resources.as_ref().clone())
 }
@@ -76,6 +86,7 @@ pub fn app(state: AppState, static_dir: PathBuf) -> Router {
     let api = Router::new()
         .route("/health", get(health))
         .route("/resources", get(list_resources))
+        .route("/plans", get(plans))
         .with_state(state)
         .layer(CompressionLayer::new());
 
@@ -142,7 +153,17 @@ async fn main() {
     let resources = load_resources(&config.resources_file);
     tracing::info!(count = resources.len(), "ressources chargées");
 
-    let state = AppState { resources: Arc::new(resources) };
+    let pricing = Pricing::from_env();
+    tracing::info!(
+        jour = pricing.prix_jour_centimes,
+        essai = pricing.essai_jours,
+        "prix Premium (centimes/jour) chargé"
+    );
+
+    let state = AppState {
+        resources: Arc::new(resources),
+        pricing: Arc::new(pricing),
+    };
     let router = app(state, config.static_dir);
 
     let listener = tokio::net::TcpListener::bind(config.bind).await.expect("bind impossible");
@@ -164,7 +185,14 @@ mod tests {
 
     fn test_app() -> Router {
         let resources = load_resources(&"data/resources.json".into());
-        app(AppState { resources: Arc::new(resources) }, "../frontend/build".into())
+        let pricing = Arc::new(Pricing::new(2, 30, 0));
+        app(
+            AppState {
+                resources: Arc::new(resources),
+                pricing,
+            },
+            "../frontend/build".into(),
+        )
     }
 
     #[tokio::test]
@@ -187,6 +215,19 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let list: Vec<Resource> = serde_json::from_slice(&body).unwrap();
         assert!(list.iter().any(|r| r.id == "3114"));
+    }
+
+    #[tokio::test]
+    async fn plans_are_served() {
+        let res = test_app()
+            .oneshot(Request::get("/api/plans").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 200);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["prix_jour_centimes"], 2);
+        assert_eq!(json["plans"][1]["mois_centimes"], 61);
     }
 
     #[test]
