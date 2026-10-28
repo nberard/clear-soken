@@ -83,7 +83,7 @@ rapports-nouveau-lien: ## crée un nouveau lien secret (l'ancien cesse de marche
 	  else echo "RAPPORTS_SECRET=$$s" >> proxy/.env; fi; \
 	  sed -i '/^RAPPORTS_AUTH_\(USER\|HASH\)=/d' proxy/.env; \
 	  echo "-> nouveau lien secret enregistré dans proxy/.env"
-	@[ -n "$(NO_RELOAD)" ] || { $(MAKE) proxy && $(MAKE) -s rapports-lien; }
+	@[ -n "$(NO_RELOAD)" ] || $(MAKE) rapports-proxy   # recopie la config (lien secret), la vérifie et recharge
 
 rapports-lien:    ## affiche le lien secret des rapports (à mettre dans RAPPORTS_URL côté PC)
 	@grep -Eq '^RAPPORTS_SECRET=[A-Za-z0-9]{32,}$$' proxy/.env || { \
