@@ -1,7 +1,7 @@
 DOMAIN ?= clearsoken.touplitoui.me
 IMAGE  ?= touplitoui/clear-soken
 
-.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-qr proxy-check
+.PHONY: dev-api dev-web test proxy deploy update restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-qr proxy-check portal-proxy portal-update
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -63,6 +63,18 @@ rapports-proxy:   ## active https://$$RAPPORTS_HOST (site privé des rapports Cl
 rapports-qr:      ## QR code vers le site des rapports (sudo apt install qrencode)
 	qrencode -s 20 -m 2 -o qr-rapports.png "https://$(RAPPORTS_HOST)/"
 	@echo "-> qr-rapports.png"
+
+# --- Clearmind portal (site public, nberard/kraken-portal), voir README ---
+portal-proxy:     ## active https://$$PORTAL_HOST (clone kraken-portal dans PORTAL_DIR si absent)
+	@d=$$(sed -n 's/^PORTAL_DIR=//p' proxy/.env); \
+	  [ -n "$$d" ] || { echo "Ajoute PORTAL_DIR=/home/nico/dev/kraken-portal dans proxy/.env"; exit 1; }; \
+	  [ -d "$$d/.git" ] || git clone https://github.com/nberard/kraken-portal "$$d"
+	cp proxy/sites/portal.caddy.example proxy/sites/portal.caddy
+	$(MAKE) proxy-check
+	$(MAKE) proxy
+
+portal-update:    ## récupère la dernière version du portal (aucun redémarrage nécessaire)
+	@d=$$(sed -n 's/^PORTAL_DIR=//p' proxy/.env); git -C "$$d" pull --ff-only
 
 # --- Optionnel : construire sur le PC et publier sur Docker Hub ---
 push:

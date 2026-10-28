@@ -3,3 +3,4 @@ caddy_data/
 sites/*.caddy
 rapports/*
 !rapports/.gitkeep
+portal/

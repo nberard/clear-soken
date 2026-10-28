@@ -84,6 +84,7 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 | `make restart` | après modification de `backend/data/resources.json` |
 | `make logs` | journaux de l'appli |
 | `make proxy` | après modification de `proxy/Caddyfile` ou `proxy/.env` |
+| `make portal-update` | publie la dernière version du portal (clearmind.studio) |
 | `make proxy-check` | vérifie la config Caddy avant de recharger (sans couper les sites) |
 | `make qr` | QR code à afficher dans le service (`sudo apt install qrencode`) |
 
@@ -96,6 +97,20 @@ Si le serveur est lent à compiler, construis l'image sur ton PC et publie-la : 
 ## À côté : tableau de bord santé perso (`mint-health/`)
 
 Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://health.touplitoui.me` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).
+
+## À côté : Clearmind portal (site public)
+
+La page publique `https://clearmind.studio` (dépôt [`kraken-portal`](https://github.com/nberard/kraken-portal) :
+Instagram, Twitch, YouTube, et un bouton + QR code vers les rapports privés) est servie par le même Caddy,
+directement depuis un clone du dépôt sur le serveur.
+
+1. **DNS** : enregistrements **A** `clearmind.studio` et `www.clearmind.studio` vers l'IP du serveur (si le domaine
+   pointe encore vers un autre hébergeur, le site y restera tant que le DNS n'est pas changé).
+2. Dans `proxy/.env` : `PORTAL_HOST=clearmind.studio` et `PORTAL_DIR=/home/nico/dev/kraken-portal`.
+3. `make portal-proxy` : clone le portal s'il n'est pas là, vérifie la config, recharge Caddy.
+4. Mise à jour du contenu : `make portal-update` (simple `git pull`, sans redémarrage).
+
+Le dossier `.git` et les fichiers de configuration du clone ne sont jamais servis.
 
 ## À côté : rapports Clearmind (site privé, perso)
 
