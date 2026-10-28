@@ -24,8 +24,14 @@ proxy:            ## démarre/recharge le reverse proxy Caddy (80/443)
 
 deploy:           ## télécharge l'image construite par GitHub Actions et (re)démarre l'appli (TAG=sha-… pour une version précise)
 	@[ -f .env ] || { cp .env.example .env && echo "-> .env créé depuis .env.example (prix des plans)"; }
-	docker compose pull clearsoken
-	docker compose up -d clearsoken
+	@if docker compose pull clearsoken; then \
+	  docker compose up -d clearsoken; \
+	elif [ "$(TAG)" != "latest" ]; then \
+	  echo "-> image $(TAG) inaccessible : impossible de revenir à cette version sans ghcr.io"; exit 1; \
+	else \
+	  echo "-> image ghcr.io inaccessible (privée sans docker login ghcr.io -u nberard, ou réseau) : construction sur ce serveur"; \
+	  docker compose up -d --build clearsoken; \
+	fi
 	@docker image prune -f >/dev/null
 
 update:           ## récupère la dernière version du dépôt (compose, .env.example) et redéploie
