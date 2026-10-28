@@ -82,7 +82,7 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 
 | Commande | Effet |
 |---|---|
-| `make deploy` | télécharge la dernière image (construite par GitHub Actions) et redémarre |
+| `make deploy` | télécharge la dernière image (construite par GitHub Actions) et redémarre ; si ghcr.io est inaccessible, construit l'image sur le serveur |
 | `make deploy TAG=sha-abc1234` | revient à la version d'un commit précis |
 | `make update` | `git pull` (compose, `.env.example`) puis `make deploy` |
 | `make build-local` | secours : construit l'image sur le serveur (plusieurs minutes) |
