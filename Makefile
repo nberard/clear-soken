@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres centres-auto
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres centres-auto
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -78,6 +78,10 @@ health-proxy:     ## active https://$$HEALTH_HOST dans Caddy (sous-domaine, ex. 
 	rm -f proxy/sites/health.routes   # ancien format (sous /health du domaine Clear Soken)
 	cp proxy/sites/health.caddy.example proxy/sites/health.caddy   # toujours à jour avec le dépôt
 	$(MAKE) proxy
+
+health-takeout:   ## importe l'historique Google Fit d'un export Takeout : make health-takeout TAKEOUT=~/takeout [ESSAI=1]
+	@[ -n "$(TAKEOUT)" ] || { echo "Indique le dossier des zips : make health-takeout TAKEOUT=~/takeout"; exit 1; }
+	$(HEALTH_COMPOSE) run --rm --no-deps -v "$(abspath $(TAKEOUT)):/takeout:ro" sync python -m healthsync.takeout /takeout $(if $(ESSAI),--essai)
 
 health-logs:
 	$(HEALTH_COMPOSE) logs -f --tail=100
