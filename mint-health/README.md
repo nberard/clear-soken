@@ -144,6 +144,21 @@ Les autres types sont ignorés (listés dans la réponse sous `ignored_types`). 
 
 **Plusieurs sources** : si Google Health et Health Connect donnent tous deux une valeur pour le même jour, le tableau de bord et l'applet affichent celle de la première source de `SOURCE_PRIORITY` (par défaut `google-health,health-connect`). Les nuits qui se chevauchent sont dédoublonnées de la même façon. Pour n'utiliser que Google Fit, mets `SOURCE_PRIORITY=health-connect,google-health`, ou ne connecte pas Google Health.
 
+### Historique ancien : import Google Takeout
+
+Pour remplir le passé (avant la première synchro), exporte **Fit** avec [Google Takeout](https://takeout.google.com)
+(format CSV), dépose les zips sur le serveur (ex. `~/takeout`), puis :
+
+```bash
+make health-takeout TAKEOUT=~/takeout ESSAI=1   # ce qui serait importé, sans rien écrire
+make health-takeout TAKEOUT=~/takeout           # import
+```
+
+L'import lit `Fit/Métriques d'activité quotidiennes` directement dans les zips (rien à décompresser) : pas, distance,
+calories, fréquence cardiaque moyenne / max / min et poids, jour par jour. Les valeurs ont la source `takeout`, absente
+de `SOURCE_PRIORITY` donc toujours dernière : elles ne remplacent jamais celles de Google Health ou de Health Connect,
+elles comblent seulement les jours vides. On peut relancer l'import sans risque (les valeurs sont mises à jour).
+
 ## Journal vocal
 
 Dire une idée, une humeur, un rappel… en un geste, sur les trois plateformes. Les mémos arrivent tous dans le service de synchro et s'affichent dans Grafana.
