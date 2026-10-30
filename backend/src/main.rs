@@ -2,7 +2,9 @@
 //!
 //! Choix de conception : aucune donnée de santé ne transite par ce serveur.
 //! Les notes du patient restent sur son téléphone ; l'API ne sert que des
-//! contenus publics (annuaire de ressources).
+//! contenus publics (annuaire de ressources, centres d'addictologie).
+//! Le tri des centres par distance se fait sur le téléphone : la position
+//! du patient n'est jamais envoyée ici.
 
 mod pricing;
 
@@ -38,6 +40,7 @@ pub struct Resource {
 #[derive(Clone)]
 pub struct AppState {
     pub resources: Arc<Vec<Resource>>,
+    pub centres: Arc<Vec<serde_json::Value>>,
     pub pricing: Arc<Pricing>,
 }
 
@@ -73,6 +76,11 @@ async fn plans(State(state): State<AppState>) -> Json<Pricing> {
     Json(state.pricing.as_ref().clone())
 }
 
+/// Centres d'addictologie : annuaire FINESS généré par `make centres` + lieux conseillés par l'équipe.
+async fn list_centres(State(state): State<AppState>) -> Json<Vec<serde_json::Value>> {
+    Json(state.centres.as_ref().clone())
+}
+
 async fn list_resources(State(state): State<AppState>) -> Json<Vec<Resource>> {
     Json(state.resources.as_ref().clone())
 }
@@ -86,6 +94,7 @@ pub fn app(state: AppState, static_dir: PathBuf) -> Router {
     let api = Router::new()
         .route("/health", get(health))
         .route("/resources", get(list_resources))
+        .route("/centres", get(list_centres))
         .route("/plans", get(plans))
         .with_state(state)
         .layer(CompressionLayer::new());
@@ -108,8 +117,39 @@ pub fn app(state: AppState, static_dir: PathBuf) -> Router {
         ))
         .layer(SetResponseHeaderLayer::overriding(
             HeaderName::from_static("permissions-policy"),
-            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+            // La géolocalisation sert à « Trouver un centre » ; elle reste sur le téléphone.
+            HeaderValue::from_static("camera=(), microphone=(), geolocation=(self)"),
         ))
+}
+
+/// Charge les centres : `centres.json` (généré par scripts/centres-finess.py, absent tant que
+/// `make centres` n'a pas tourné) puis `centres-equipe.json` (tenu à la main, marqué « conseillé »).
+/// Une entrée sans coordonnées valides est ignorée.
+pub fn load_centres(dir: &std::path::Path) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    for (file, equipe) in [("centres.json", false), ("centres-equipe.json", true)] {
+        let path = dir.join(file);
+        let Ok(raw) = std::fs::read_to_string(&path) else {
+            tracing::warn!("{} absent : lancer make centres", path.display());
+            continue;
+        };
+        let list: Vec<serde_json::Value> = serde_json::from_str(&raw)
+            .unwrap_or_else(|e| panic!("{} n'est pas un JSON valide : {e}", path.display()));
+        for mut c in list {
+            let ok = ["lat", "lon"].iter().all(|k| c[k].as_f64().is_some_and(f64::is_finite))
+                && c["id"].is_string()
+                && c["nom"].is_string();
+            if !ok {
+                tracing::warn!(entree = %c, "centre ignoré (id, nom, lat ou lon manquant)");
+                continue;
+            }
+            if equipe {
+                c["equipe"] = true.into();
+            }
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn load_resources(path: &PathBuf) -> Vec<Resource> {
@@ -152,6 +192,8 @@ async fn main() {
     let config = Config::from_env();
     let resources = load_resources(&config.resources_file);
     tracing::info!(count = resources.len(), "ressources chargées");
+    let centres = load_centres(config.resources_file.parent().unwrap_or(std::path::Path::new(".")));
+    tracing::info!(count = centres.len(), "centres d'addictologie chargés");
 
     let pricing = Pricing::from_env();
     tracing::info!(
@@ -162,6 +204,7 @@ async fn main() {
 
     let state = AppState {
         resources: Arc::new(resources),
+        centres: Arc::new(centres),
         pricing: Arc::new(pricing),
     };
     let router = app(state, config.static_dir);
@@ -189,6 +232,7 @@ mod tests {
         app(
             AppState {
                 resources: Arc::new(resources),
+                centres: Arc::new(vec![serde_json::json!({"id": "t", "nom": "Test", "lat": 45.0, "lon": 5.0})]),
                 pricing,
             },
             "../frontend/build".into(),
@@ -203,6 +247,7 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), 200);
         assert_eq!(res.headers()["referrer-policy"], "no-referrer");
+        assert!(res.headers()["permissions-policy"].to_str().unwrap().contains("geolocation=(self)"));
     }
 
     #[tokio::test]
@@ -228,6 +273,38 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["prix_jour_centimes"], 2);
         assert_eq!(json["plans"][1]["mois_centimes"], 61);
+    }
+
+    #[tokio::test]
+    async fn centres_are_served() {
+        let res = test_app()
+            .oneshot(Request::get("/api/centres").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 200);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let list: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+        assert_eq!(list[0]["id"], "t");
+    }
+
+    #[test]
+    fn centres_equipe_are_flagged_and_invalid_skipped() {
+        let dir = std::env::temp_dir().join(format!("centres-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("centres.json"), r#"[{"id":"a","nom":"A","lat":45.1,"lon":5.7},{"id":"b","nom":"B"}]"#).unwrap();
+        std::fs::write(dir.join("centres-equipe.json"), r#"[{"id":"e","nom":"E","lat":45.2,"lon":5.8}]"#).unwrap();
+        let list = load_centres(&dir);
+        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(list.len(), 2);
+        assert!(list[0].get("equipe").is_none());
+        assert_eq!(list[1]["equipe"], true);
+    }
+
+    #[test]
+    fn centres_equipe_file_is_valid() {
+        // Le fichier tenu à la main doit rester un JSON valide (sinon l'API refuse de démarrer).
+        let raw = std::fs::read_to_string("data/centres-equipe.json").unwrap();
+        let _: Vec<serde_json::Value> = serde_json::from_str(&raw).unwrap();
     }
 
     #[test]

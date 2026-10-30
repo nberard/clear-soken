@@ -14,6 +14,7 @@ Le patient scanne un QR code affiché dans le service : l'appli s'ouvre et s'ins
 | **Ma voix** | Mémos vocaux en un geste : enregistrer, réécouter, renommer, partager. Raccourci « Enregistrer » sur l'icône de l'appli (appui long) |
 | **Échelons** | Petits pas en 4 paliers (soin de soi → autres → lien → sortie), personnalisables |
 | **Ressources** | Annuaire : écoute, GEM, Clubhouse, CMP, proches… |
+| **Trouver un centre** | Addictions (alcool, cannabis, cocaïne, opioïdes, tabac, jeux…) et besoin (suivi, sevrage à l'hôpital, séjour/post-cure, groupe ou association, réduction des risques) : le lieu le plus adapté autour de moi (GPS) ou de mon futur chez-moi (adresse, ville, ou un lieu de « Ma sortie »). Appeler, itinéraire, associations d'entraide (AA, NA, Vie Libre…), lignes d'écoute |
 | **Besoin d'aide** | Toujours accessible : soignants, 3114, 15, 112, SMS 114. Effacement des données |
 
 L'appli fonctionne hors ligne grâce au service worker.
@@ -21,6 +22,8 @@ L'appli fonctionne hors ligne grâce au service worker.
 ## Confidentialité
 
 **Aucune donnée de santé n'est envoyée au serveur.** L'humeur et les échelons sont stockés uniquement sur le téléphone (`localStorage`), les mémos vocaux aussi (IndexedDB). Ils ne quittent le téléphone que si le patient choisit de les partager. Le serveur ne sert que l'appli et l'annuaire public, et Caddy ne journalise pas les adresses IP.
+
+« Trouver un centre » suit la même règle : l'annuaire des centres est téléchargé en entier et trié **sur le téléphone**. Ni la position, ni le motif de la recherche ne sont envoyés au serveur. Seule une adresse tapée à la main part vers le géocodeur public de l'IGN (`data.geopf.fr`), sans référent ni motif.
 
 Conséquence : la V1 n'a pas besoin d'un hébergeur certifié **HDS**. Dès que des données patient seront stockées côté serveur (comptes, communauté, partage avec les soignants), il faudra :
 - un hébergement HDS (OVH propose des offres dédiées) ;
@@ -86,7 +89,8 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 | `make deploy TAG=sha-abc1234` | revient à la version d'un commit précis |
 | `make update` | `git pull` (compose, `.env.example`) puis `make deploy` |
 | `make build-local` | secours : construit l'image sur le serveur (plusieurs minutes) |
-| `make restart` | après modification de `backend/data/resources.json` |
+| `make restart` | après modification de `backend/data/resources.json` ou `centres-equipe.json` |
+| `make centres` | force la mise à jour de l'annuaire addictologie (sinon `make deploy` s'en charge tous les 30 jours) |
 | `make logs` | journaux de l'appli |
 | `make proxy` | après modification de `proxy/Caddyfile` ou `proxy/.env` |
 | `make portal-update` | publie la dernière version du portal (clearmind.studio) |
@@ -94,6 +98,28 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 | `make qr` | QR code à afficher dans le service (`sudo apt install qrencode`) |
 
 Pour ajouter un autre site plus tard : un nouveau bloc dans `proxy/Caddyfile`, le conteneur sur le réseau `proxy`, puis `make proxy`.
+
+### Annuaire des centres d'addictologie
+
+Rien à faire en plus : **`make deploy` met l'annuaire à jour tout seul** quand il manque, qu'il a plus de 30 jours ou que le script a changé. Il télécharge le fichier FINESS (data.gouv.fr) et écrit `backend/data/centres.json` (non versionné), avec leurs coordonnées (métropole et outre-mer) :
+
+- CSAPA, consultations jeunes consommateurs (CJC), CAARUD ;
+- séjours : post-cures (SMR addictologie), centres thérapeutiques résidentiels, communautés thérapeutiques ;
+- services et cliniques d'addictologie (sevrage).
+
+Ces deux derniers groupes n'ont pas de catégorie FINESS : le script les reconnaît à leur nom (« addictologie », « post-cure », « communauté thérapeutique »…). Un lieu au nom trop vague peut donc manquer : ajoute-le dans `centres-equipe.json`. Si data.gouv.fr ne répond pas, le déploiement continue avec l'ancien annuaire. `make centres` force la mise à jour (Python 3 du serveur, ou une image Docker Python s'il n'y en a pas).
+
+Les associations nationales (Alcooliques Anonymes, Narcotiques Anonymes, Vie Libre, Croix Bleue, Alcool Assistance) sont affichées avec leur moteur de recherche de réunions (`frontend/src/lib/centres.ts`).
+
+Les lieux que l'équipe recommande (groupe AA ou Vie Libre du quartier, post-cure partenaire, consultation hospitalière…) se mettent à la main dans `backend/data/centres-equipe.json`, puis `make restart`. Ils sont marqués « Conseillé par l'équipe » et remontent dans le classement :
+
+```json
+[{ "id": "chu-addicto", "nom": "Unité d'addictologie du CHU", "type": "autre", "adresse": "Bd de la Chantourne",
+   "cp": "38700", "ville": "La Tronche", "tel": "04 76 00 00 00", "lat": 45.2, "lon": 5.75,
+   "specialites": ["alcool"], "note": "Demander à l'équipe pour un rendez-vous rapide." }]
+```
+
+`type` : `csapa`, `cjc`, `caarud`, `hopital`, `residentiel` (post-cure, séjour), `association` ou `autre`. `specialites` (facultatif) : `alcool`, `cannabis`, `cocaine`, `opioides`, `tabac`, `jeux`, `autre`. Coordonnées : clic droit sur le lieu dans une carte.
 
 ### Image Docker (GitHub Actions → ghcr.io)
 

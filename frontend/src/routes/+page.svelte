@@ -63,6 +63,14 @@
 	</span>
 </a>
 
+<a class="card tile" href="/addictions/">
+	<span class="big" aria-hidden="true">🧭</span>
+	<span>
+		<strong>Trouver un centre addictions</strong>
+		<span class="muted">Soins, post-cure, associations : alcool, cannabis, cocaïne… près de moi ou de mon futur chez-moi</span>
+	</span>
+</a>
+
 <a class="card tile" href="/ressources/">
 	<span class="big" aria-hidden="true">🤝</span>
 	<span>
