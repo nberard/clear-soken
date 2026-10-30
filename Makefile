@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -33,6 +33,7 @@ deploy:           ## télécharge l'image construite par GitHub Actions et (re)d
 	  docker compose up -d --build clearsoken; \
 	fi
 	@docker image prune -f >/dev/null
+	@[ -f backend/data/centres.json ] || { $(MAKE) centres || echo "-> annuaire des centres non généré : relancer make centres"; }
 
 update:           ## récupère la dernière version du dépôt (compose, .env.example) et redéploie
 	git pull
@@ -42,7 +43,11 @@ build-local:      ## secours : construit l'image sur cette machine au lieu de la
 	@[ -f .env ] || { cp .env.example .env && echo "-> .env créé depuis .env.example (prix des plans)"; }
 	docker compose up -d --build clearsoken
 
-restart:          ## après modification de backend/data/resources.json
+centres:          ## (re)génère l'annuaire des centres d'addictologie depuis FINESS (data.gouv.fr), puis redémarre
+	python3 scripts/centres-finess.py
+	@if docker compose ps -q clearsoken 2>/dev/null | grep -q .; then docker compose restart clearsoken; fi
+
+restart:          ## après modification de backend/data/resources.json ou centres-equipe.json
 	docker compose restart clearsoken
 
 logs:

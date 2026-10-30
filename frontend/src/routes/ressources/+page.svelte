@@ -40,6 +40,11 @@
 <h1>Après la clinique</h1>
 <p class="lead">Des lieux et des personnes pour ne pas rester seul·e.</p>
 
+<a class="card raccourci" href="/addictions/">
+	<span aria-hidden="true">🧭</span>
+	<span><strong>Addictions : trouver un centre</strong><br /><span class="muted">Le plus adapté, près de moi ou de mon futur chez-moi</span></span>
+</a>
+
 <input bind:value={query} type="search" placeholder="Chercher : ville, GEM, écoute…" aria-label="Chercher une ressource" />
 
 {#if loading}
@@ -67,6 +72,8 @@
 
 <style>
 	input { margin-bottom: 1rem; }
+	.raccourci { display: flex; gap: 0.8rem; align-items: center; color: inherit; text-decoration: none; border-color: var(--primary); }
+	.raccourci > span:first-child { font-size: 1.8rem; }
 	h3 { margin: 0.2rem 0; font-size: 1.05rem; }
 	.kind {
 		display: inline-block;

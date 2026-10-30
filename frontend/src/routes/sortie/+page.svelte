@@ -145,7 +145,8 @@
 			<p class="muted aide">
 				Avant de partir, repère l’aide près de ce lieu :
 				<a href={lienAide(s, 'cmp')} target="_blank" rel="noopener noreferrer">CMP</a> ·
-				<a href={lienAide(s, 'urgences')} target="_blank" rel="noopener noreferrer">urgences psychiatriques</a>
+				<a href={lienAide(s, 'urgences')} target="_blank" rel="noopener noreferrer">urgences psychiatriques</a> ·
+				<a href={'/addictions/?pres=' + encodeURIComponent(s.lieu.trim())}>centre addictions</a>
 			</p>
 			<textarea bind:value={s.notes} rows="2" placeholder="Notes (adresse, accès, ce que je veux y faire)"></textarea>
 		</article>

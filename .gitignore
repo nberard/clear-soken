@@ -5,3 +5,5 @@ backend/target/
 qr-*.png
 .env
 .DS_Store
+backend/data/centres.json
+__pycache__/
