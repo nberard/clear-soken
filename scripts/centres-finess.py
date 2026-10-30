@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Génère backend/data/centres.json : les centres d'addictologie de France (CSAPA, CAARUD) avec leurs coordonnées.
+"""Génère backend/data/centres.json : les lieux d'addictologie de France avec leurs coordonnées.
+
+- CSAPA et consultations jeunes consommateurs (CJC), CAARUD (catégories FINESS) ;
+- séjours : post-cures (SMR addictologie), centres thérapeutiques résidentiels, communautés thérapeutiques ;
+- hôpitaux et cliniques d'addictologie (sevrage).
+Les deux derniers n'ont pas de catégorie FINESS à eux : on les reconnaît à leur nom.
 
 Source : FINESS, fichier des établissements géolocalisés publié sur data.gouv.fr (Licence Ouverte).
     python3 scripts/centres-finess.py                       # télécharge la dernière extraction
@@ -25,11 +30,17 @@ from pathlib import Path
 DATASET_API = "https://www.data.gouv.fr/api/1/datasets/finess-extraction-du-fichier-des-etablissements/"
 SORTIE = Path(__file__).resolve().parent.parent / "backend" / "data" / "centres.json"
 
-# Catégories FINESS (categetab)
-CATEGORIES = {
-    "197": "csapa",  # Centre de soins, d'accompagnement et de prévention en addictologie
-    "178": "caarud",  # Centre d'accueil et d'accompagnement à la réduction des risques pour usagers de drogues
-}
+# Catégories FINESS (categetab) : 197 = CSAPA, 178 = CAARUD.
+
+# Lieux reconnus à leur nom, quelle que soit leur catégorie
+ADDICTO = re.compile(r"ADDICT|ALCOOLOG|TOXICOMAN|POST[- ]?CURE|SEVRAGE|DROGUE", re.I)
+RESIDENTIEL = re.compile(
+    r"POST[- ]?CURE|COMMUNAUT[EÉ]S? TH[EÉ]RAPEUTIQUE|\bCTR\b|R[EÉ]SIDENTIEL|H[EÉ]BERGEMENT|APPARTEMENTS? TH[EÉ]RAPEUTIQUE"
+    r"|SOINS DE SUITE|\bSSR\b|\bSMR\b|R[EÉ]ADAPTATION|POST[- ]?SEVRAGE",
+    re.I,
+)
+# Pharmacies : sans rapport même si leur nom parle d'addiction
+EXCLUES = {"620"}
 
 # Colonnes des lignes « structureet » et « geolocalisation » (format etalab cs1100507)
 S_FINESS, S_RS, S_RSLONGUE, S_COMPLRS = 1, 3, 4, 5
@@ -102,7 +113,7 @@ def vers_wgs84(x: float, y: float, cp: str) -> tuple[float, float] | None:
 def joli(texte: str, majuscule: bool = True) -> str:
     """« CSAPA DE L'HOPITAL ST JEAN » -> « Csapa de l'Hopital St Jean » (sigles connus gardés)."""
     petits = {"de", "du", "des", "la", "le", "les", "et", "en", "à", "au", "aux", "d", "l", "sur"}
-    sigles = {"CSAPA", "CAARUD", "CJC", "CHU", "CH", "CHS", "CHI", "CHR", "CMP", "ANPAA", "ELSA", "AIDES", "SOS", "CMPP", "GHU", "APHP", "AP-HP", "EPSM", "SSR"}
+    sigles = {"CSAPA", "CAARUD", "CJC", "CHU", "CH", "CHS", "CHI", "CHR", "CMP", "ANPAA", "ELSA", "AIDES", "SOS", "CMPP", "GHU", "APHP", "AP-HP", "EPSM", "SSR", "SMR", "CTR"}
     mots = re.split(r"(\s+|-|')", texte.strip())
     out = []
     for i, m in enumerate(mots):
@@ -135,6 +146,20 @@ def specialites(nom: str) -> list[str]:
     return spe
 
 
+def type_lieu(s: list[str]) -> str | None:
+    nom = " ".join(s[i] for i in (S_RS, S_RSLONGUE, S_COMPLRS)).upper()
+    cat = s[S_CATEGORIE].strip()
+    if cat == "178":
+        return "caarud"
+    if cat == "197":
+        if RESIDENTIEL.search(nom):
+            return "residentiel"
+        return "cjc" if re.search(r"\bCJC\b|JEUNES? CONSOMMATEUR", nom) else "csapa"
+    if cat in EXCLUES or not ADDICTO.search(nom):
+        return None
+    return "residentiel" if RESIDENTIEL.search(nom) else "hopital"
+
+
 def centre(s: list[str], xy: tuple[str, str]) -> dict | None:
     acheminement = s[S_ACHEMINEMENT].strip()
     m = re.match(r"(\d{5})\s+(.*)", acheminement)
@@ -148,9 +173,9 @@ def centre(s: list[str], xy: tuple[str, str]) -> dict | None:
     if not pos:
         return None
     nom_brut = (s[S_RSLONGUE] or s[S_RS]).strip()
-    type_ = CATEGORIES[s[S_CATEGORIE].strip()]
-    if type_ == "csapa" and re.search(r"\bCJC\b|JEUNES? CONSOMMATEUR", nom_brut.upper()):
-        type_ = "cjc"
+    type_ = type_lieu(s)
+    if not type_:
+        return None
     voie = " ".join(
         p for p in [s[S_NUMVOIE].strip(), TYPES_VOIE.get(s[S_TYPVOIE].strip().upper(), s[S_TYPVOIE].strip().lower()), joli(s[S_VOIE], majuscule=False)] if p
     )
@@ -166,7 +191,7 @@ def centre(s: list[str], xy: tuple[str, str]) -> dict | None:
         "lat": pos[0],
         "lon": pos[1],
     }
-    spe = specialites(nom_brut) if type_ == "csapa" else []
+    spe = specialites(nom_brut) if type_ != "caarud" else []
     if spe:
         out["specialites"] = spe
     return out
@@ -190,7 +215,7 @@ def lire(texte: str) -> list[dict]:
     for ligne in csv.reader(io.StringIO(texte), delimiter=";"):
         if not ligne:
             continue
-        if ligne[0] == "structureet" and len(ligne) > S_CATEGORIE and ligne[S_CATEGORIE].strip() in CATEGORIES:
+        if ligne[0] == "structureet" and len(ligne) > S_CATEGORIE and type_lieu(ligne):
             structures[ligne[S_FINESS].strip()] = ligne
         elif ligne[0] == "geolocalisation" and len(ligne) > G_Y:
             coords[ligne[G_FINESS].strip()] = (ligne[G_X], ligne[G_Y])
@@ -201,7 +226,7 @@ def lire(texte: str) -> list[dict]:
             out.append(c)
         else:
             sans_coord += 1
-    print(f"{len(structures)} centres trouvés, {sans_coord} ignorés (sans coordonnées valides)", file=sys.stderr)
+    print(f"{len(structures)} lieux trouvés, {sans_coord} ignorés (sans coordonnées valides)", file=sys.stderr)
     return sorted(out, key=lambda c: (c["cp"], c["nom"]))
 
 

@@ -4,22 +4,25 @@
 	import type { PlanSortie } from '#lib/sortie.ts';
 	import {
 		SUBSTANCES,
+		BESOINS,
 		TYPES,
+		associationsPour,
 		classer,
 		formatKm,
 		lienItineraire,
 		lignesPour,
 		lienAnnuaireOfficiel,
 		chercherLieu,
+		type BesoinId,
 		type Centre,
 		type Lieu
 	} from '#lib/centres.ts';
 
-	type Choix = { substances: string[]; jeune: boolean };
+	type Choix = { substances: string[]; jeune: boolean; besoin: BesoinId };
 
 	let centres: Centre[] = $state([]);
 	let erreurAnnuaire = $state(false);
-	let choix: Choix = $state({ substances: [], jeune: false });
+	let choix: Choix = $state({ substances: [], jeune: false, besoin: 'tout' });
 	let mode: 'moi' | 'chezmoi' = $state('moi');
 
 	// Autour de moi (jamais enregistré)
@@ -38,7 +41,7 @@
 	let charge = false;
 
 	onMount(async () => {
-		choix = load<Choix>('centres:choix', choix);
+		choix = { ...choix, ...load<Partial<Choix>>('centres:choix', {}) };
 		chezMoi = load<Lieu | null>('centres:chezmoi', null);
 		lieuxSortie = [
 			...new Set(load<PlanSortie | null>('sortie', null)?.sejours.map((s) => s.lieu.trim()).filter(Boolean) ?? [])
@@ -134,11 +137,13 @@
 	}
 
 	let origine = $derived(mode === 'moi' ? position : chezMoi);
-	let resultats = $derived(origine ? classer(centres, origine, choix.substances, choix.jeune) : []);
+	let resultats = $derived(origine ? classer(centres, origine, choix.substances, choix.jeune, choix.besoin) : []);
 	let meilleur = $derived(resultats[0]);
 	let autres = $derived(resultats.slice(1, combien + 1));
 	let lignes = $derived(lignesPour(choix.substances));
-	let loin = $derived(!!origine && (!meilleur || meilleur.km > 30));
+	let associations = $derived(associationsPour(choix.substances));
+	let loinOk = $derived(choix.besoin === 'sejour' ? 150 : 30);
+	let loin = $derived(!!origine && (!meilleur || meilleur.km > loinOk));
 
 	function tel(t: string) {
 		return 'tel:' + t.replace(/[^\d+]/g, '');
@@ -146,7 +151,7 @@
 </script>
 
 <h1>Trouver un centre</h1>
-<p class="lead">Addictions : un lieu près de toi, gratuit et confidentiel.</p>
+<p class="lead">Addictions : centre de soins, sevrage, post-cure ou association, près de toi ou de ton futur chez-moi.</p>
 
 <h2>Pour quoi&nbsp;?</h2>
 <div class="chips" role="group" aria-label="Ce qui me concerne (plusieurs choix possibles)">
@@ -161,6 +166,20 @@
 	J’ai moins de 25 ans
 </label>
 <p class="muted">Plusieurs choix possibles. Rien choisi&nbsp;: tous les centres.</p>
+
+<h2>Ce que je cherche</h2>
+<div class="chips" role="radiogroup" aria-label="Ce que je cherche">
+	{#each BESOINS as b (b.id)}
+		<button class="chip" role="radio" class:on={choix.besoin === b.id} aria-checked={choix.besoin === b.id} onclick={() => { choix.besoin = b.id; combien = 5; }}>
+			<span aria-hidden="true">{b.emoji}</span> {b.label}
+		</button>
+	{/each}
+</div>
+{#if choix.besoin === 'sejour'}
+	<p class="muted">Une post-cure se prépare avec ton médecin ou un CSAPA (dossier d’admission). Les lieux plus éloignés sont aussi proposés&nbsp;: on y part quelques semaines.</p>
+{:else if choix.besoin === 'sevrage'}
+	<p class="muted">Un sevrage à l’hôpital se demande en général à ton médecin, à ton psychiatre ou à un CSAPA.</p>
+{/if}
 
 <h2>Autour de…</h2>
 <div class="seg" role="radiogroup" aria-label="Chercher autour de">
@@ -222,6 +241,9 @@
 				<button class="btn secondary full" onclick={() => (combien += 5)}>Voir plus</button>
 			{/if}
 		{/if}
+		{#if choix.besoin === 'groupe' && meilleur.centre.type !== 'association'}
+			<p class="muted">Pas de groupe local connu ici&nbsp;: les associations ci-dessous ont un moteur de recherche de réunions.</p>
+		{/if}
 		<p class="muted">Suggestion selon ta demande et la distance. Parles-en avec ton équipe soignante&nbsp;: elle connaît les lieux et peut t’orienter.</p>
 	{:else if erreurAnnuaire}
 		<div class="card"><p>Impossible de charger les centres pour l’instant. Vérifie ta connexion, ou appelle une des lignes ci-dessous.</p></div>
@@ -234,6 +256,21 @@
 	{/if}
 {/if}
 
+{#if associations.length}
+	<h2>Associations et groupes de parole</h2>
+	<p class="muted">Gratuit, sans inscription, avec des personnes qui sont passées par là.</p>
+	{#each associations as a (a.id)}
+		<div class="card asso">
+			<strong>{a.nom}</strong>
+			<p class="muted">{a.quoi}</p>
+			<div class="actions">
+				<a class="btn secondary" href={a.url} target="_blank" rel="noopener noreferrer">🔎 Trouver une réunion</a>
+				{#if a.tel}<a class="btn secondary" href={tel(a.tel)}>📞 {a.tel}</a>{/if}
+			</div>
+		</div>
+	{/each}
+{/if}
+
 <h2>Parler à quelqu’un maintenant</h2>
 <p class="muted">Gratuit et anonyme, pour toi ou un proche.</p>
 {#each lignes as l (l.id)}
@@ -244,7 +281,7 @@
 {/each}
 
 <details class="card">
-	<summary>CSAPA, CJC, CAARUD&nbsp;: c’est quoi&nbsp;?</summary>
+	<summary>CSAPA, post-cure, CAARUD…&nbsp;: c’est quoi&nbsp;?</summary>
 	{#each Object.entries(TYPES).filter(([t]) => t !== 'autre') as [t, info] (t)}
 		<p><strong>{info.label}</strong>&nbsp;: {info.explication}</p>
 	{/each}
@@ -329,6 +366,7 @@
 	.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
 	.actions .btn { flex: 1 1 auto; min-height: 44px; font-size: 0.95rem; }
 
+	.asso p { margin: 0.2rem 0 0; }
 	.ligne { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
 	.ligne .btn { min-height: 44px; font-size: 0.95rem; }
 	details summary { font-weight: 700; cursor: pointer; min-height: 32px; }

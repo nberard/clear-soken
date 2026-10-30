@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres centres-auto
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -33,7 +33,7 @@ deploy:           ## télécharge l'image construite par GitHub Actions et (re)d
 	  docker compose up -d --build clearsoken; \
 	fi
 	@docker image prune -f >/dev/null
-	@[ -f backend/data/centres.json ] || { $(MAKE) centres || echo "-> annuaire des centres non généré : relancer make centres"; }
+	@$(MAKE) -s centres-auto
 
 update:           ## récupère la dernière version du dépôt (compose, .env.example) et redéploie
 	git pull
@@ -43,9 +43,20 @@ build-local:      ## secours : construit l'image sur cette machine au lieu de la
 	@[ -f .env ] || { cp .env.example .env && echo "-> .env créé depuis .env.example (prix des plans)"; }
 	docker compose up -d --build clearsoken
 
-centres:          ## (re)génère l'annuaire des centres d'addictologie depuis FINESS (data.gouv.fr), puis redémarre
-	python3 scripts/centres-finess.py
+CENTRES = backend/data/centres.json
+
+centres:          ## (re)génère l'annuaire addictologie (CSAPA, post-cures, hôpitaux, CAARUD) depuis FINESS, puis redémarre
+	@if command -v python3 >/dev/null; then python3 scripts/centres-finess.py; \
+	  else docker run --rm -v "$(CURDIR):/w" -w /w python:3.12-slim python scripts/centres-finess.py; fi
 	@if docker compose ps -q clearsoken 2>/dev/null | grep -q .; then docker compose restart clearsoken; fi
+
+# Appelé par make deploy : régénère l'annuaire s'il manque, a plus de 30 jours ou si le script a changé.
+# Un échec (data.gouv.fr injoignable) ne bloque pas le déploiement : l'ancien annuaire reste en place.
+centres-auto:
+	@if [ -z "$$(find $(CENTRES) -mtime -30 -newer scripts/centres-finess.py 2>/dev/null)" ]; then \
+	  echo "-> mise à jour de l'annuaire des centres d'addictologie (FINESS)"; \
+	  $(MAKE) -s centres || echo "-> annuaire non mis à jour (réessaie : make centres)"; \
+	fi
 
 restart:          ## après modification de backend/data/resources.json ou centres-equipe.json
 	docker compose restart clearsoken

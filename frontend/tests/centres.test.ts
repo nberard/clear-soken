@@ -1,7 +1,7 @@
 // node --experimental-strip-types --test tests/   (aucune dépendance)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adequation, classer, distanceKm, formatKm, lignesPour, type Centre } from '../src/lib/centres.ts';
+import { adequation, associationsPour, classer, distanceKm, formatKm, lignesPour, type Centre } from '../src/lib/centres.ts';
 
 const base = { adresse: '1 rue A', cp: '38000', ville: 'Grenoble' };
 const grenoble = { lat: 45.188, lon: 5.724 };
@@ -47,4 +47,32 @@ test('distances lisibles et lignes d’écoute selon le choix', () => {
 	assert.equal(formatKm(42.6), '43 km');
 	assert.deepEqual(lignesPour(['jeux']).map((l) => l.id), ['joueurs']);
 	assert.ok(lignesPour(['cannabis']).some((l) => l.id === 'cannabis'));
+});
+
+const hopital: Centre = { ...base, id: 'hopital', nom: 'Service addictologie', type: 'hopital', lat: 45.21, lon: 5.74 };
+const postcure: Centre = { ...base, id: 'postcure', nom: 'Post-cure', type: 'residentiel', lat: 45.9, lon: 6.1 }; // ~85 km
+const asso: Centre = { ...base, id: 'asso', nom: 'Groupe AA Grenoble', type: 'association', specialites: ['alcool'], lat: 45.2, lon: 5.73, equipe: true };
+
+test('séjour : la post-cure passe devant le CSAPA tout proche, même à 85 km', () => {
+	const r = classer([csapa, alcool, hopital, postcure, caarud], grenoble, ['alcool'], false, 'sejour');
+	assert.equal(r[0].centre.id, 'postcure');
+	assert.ok(r[0].raisons.includes('Hébergement sur place'));
+	assert.ok(!r.some((x) => x.centre.id === 'caarud'));
+});
+
+test('sevrage : l’hôpital d’abord ; suivi : pas de post-cure', () => {
+	assert.equal(classer([csapa, hopital, postcure], grenoble, ['alcool'], false, 'sevrage')[0].centre.id, 'hopital');
+	assert.ok(!classer([csapa, postcure], grenoble, ['alcool'], false, 'suivi').some((x) => x.centre.id === 'postcure'));
+});
+
+test('groupe : l’association locale ; une association alcool n’est pas proposée pour la cocaïne', () => {
+	assert.equal(classer([csapa, asso], grenoble, ['alcool'], false, 'groupe')[0].centre.id, 'asso');
+	assert.equal(adequation(asso, ['cocaine'], false, 'groupe'), 0);
+	assert.equal(classer([csapa, caarud], grenoble, ['cocaine'], false, 'rdr')[0].centre.id, 'caarud');
+});
+
+test('associations nationales selon ce qui est consommé', () => {
+	assert.ok(associationsPour(['alcool']).some((a) => a.id === 'aa'));
+	assert.deepEqual(associationsPour(['cocaine']).map((a) => a.id), ['na']);
+	assert.deepEqual(associationsPour(['tabac']), []);
 });
