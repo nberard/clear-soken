@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import csv
 import io
+import os
 import re
 import sys
 import unicodedata
@@ -181,6 +182,12 @@ def main() -> int:
     p.add_argument("--essai", action="store_true", help="affiche ce qui serait importé, sans écrire dans la base")
     args = p.parse_args()
 
+    illisibles = [c for c in args.chemins
+                  if not os.access(c, os.R_OK) or (os.path.isdir(c) and not os.access(c, os.X_OK))]
+    if illisibles:
+        print(f"Illisible pour l'utilisateur {os.getuid()} du conteneur : {', '.join(map(str, illisibles))} "
+              "(droits du dossier ; make health-takeout lance l'import avec ton utilisateur)", file=sys.stderr)
+        return 1
     par_jour = collecter(args.chemins)
     if not par_jour:
         print("Aucune donnée Fit trouvée (dossier « Fit/Métriques d'activité quotidiennes » absent ?)", file=sys.stderr)

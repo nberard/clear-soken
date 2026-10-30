@@ -85,7 +85,7 @@ TAKEOUT_DIR = $(abspath $(patsubst ~%,$(HOME)%,$(TAKEOUT)))
 health-takeout:   ## importe l'historique Google Fit d'un export Takeout : make health-takeout TAKEOUT=~/takeout [ESSAI=1]
 	@[ -n "$(TAKEOUT)" ] || { echo "Indique le dossier des zips : make health-takeout TAKEOUT=~/takeout"; exit 1; }
 	@[ -d "$(TAKEOUT_DIR)" ] || { echo "Dossier introuvable : $(TAKEOUT_DIR)"; exit 1; }
-	$(HEALTH_COMPOSE) run --rm --no-deps -v "$(TAKEOUT_DIR):/takeout:ro" sync python -m healthsync.takeout /takeout $(if $(ESSAI),--essai)
+	$(HEALTH_COMPOSE) run --rm --no-deps --user "$$(id -u):$$(id -g)" -v "$(TAKEOUT_DIR):/takeout:ro" sync python -m healthsync.takeout /takeout $(if $(ESSAI),--essai)
 
 health-logs:
 	$(HEALTH_COMPOSE) logs -f --tail=100
