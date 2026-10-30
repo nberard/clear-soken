@@ -65,3 +65,17 @@ def test_export_en_anglais(tmp_path):
             "2023-01-02,12,1900,3000,65,4321\n"}))
     m = takeout.collecter([tmp_path])[date(2023, 1, 2)]
     assert m["steps.countSum"] == 4321 and m["heart-rate.beatsPerMinuteAvg"] == 65
+
+
+def test_noms_de_fichiers_mal_encodes_dans_le_zip():
+    vrai = "Takeout/Fit/Métriques d_activité quotidiennes/2024-03-12.csv"
+    # Zip sans le drapeau UTF-8 : Python lit les octets UTF-8 en cp437
+    info = zipfile.ZipInfo(vrai.encode("utf-8").decode("cp437"))
+    info.flag_bits = 0
+    assert takeout.nom_zip(info) == vrai
+    # Accents décomposés (e + accent aigu)
+    import unicodedata
+    info = zipfile.ZipInfo(unicodedata.normalize("NFD", vrai))
+    info.flag_bits = 0x800
+    assert takeout.nom_zip(info) == vrai
+    assert takeout.DOSSIER_FIT.search(takeout.nom_zip(info))

@@ -14,13 +14,27 @@ import csv
 import io
 import re
 import sys
+import unicodedata
 import zipfile
 from datetime import date
 from pathlib import Path
 from typing import Iterator
 
 SOURCE = "takeout"
+# « Métriques d'activité quotidiennes » : Google remplace l'apostrophe par « _ » dans les zips
 DOSSIER_FIT = re.compile(r"(^|/)Fit/(M[ée]triques d.activit[ée] quotidiennes|Daily activity metrics)/", re.I)
+
+
+def nom_zip(info: zipfile.ZipInfo) -> str:
+    """Nom d'un fichier du zip, accents corrects. Les zips Takeout n'indiquent pas toujours que les noms sont en
+    UTF-8 : Python les lit alors en cp437 (« M├⌐triques »). Les accents peuvent aussi être décomposés (e + ´)."""
+    nom = info.filename
+    if not info.flag_bits & 0x800:
+        try:
+            nom = nom.encode("cp437").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    return unicodedata.normalize("NFC", nom)
 JOUR = re.compile(r"(\d{4}-\d{2}-\d{2})\.csv$")
 
 # Colonne (français ou anglais) -> (métrique de mint-health, conversion, agrégation sur la journée)
@@ -110,11 +124,26 @@ def _fichiers(chemins: list[Path]) -> Iterator[tuple[str, bytes]]:
             yield from _fichiers(sorted(p for p in chemin.rglob("*") if p.suffix.lower() in (".zip", ".csv")))
         elif chemin.suffix.lower() == ".zip":
             with zipfile.ZipFile(chemin) as z:
-                for nom in z.namelist():
+                for info in z.infolist():
+                    nom = nom_zip(info)
                     if DOSSIER_FIT.search(nom) and nom.lower().endswith(".csv"):
-                        yield nom, z.read(nom)
-        elif chemin.suffix.lower() == ".csv" and DOSSIER_FIT.search(chemin.as_posix()):
+                        yield nom, z.read(info)
+        elif chemin.suffix.lower() == ".csv" and DOSSIER_FIT.search(unicodedata.normalize("NFC", chemin.as_posix())):
             yield chemin.as_posix(), chemin.read_bytes()
+
+
+def _noms_fit(chemins: list[Path]) -> Iterator[str]:
+    """Noms des fichiers sous Fit/ (diagnostic quand rien n'est reconnu)."""
+    for chemin in chemins:
+        zips = sorted(chemin.glob("*.zip")) if chemin.is_dir() else [chemin]
+        for z in zips:
+            if z.suffix.lower() != ".zip":
+                continue
+            with zipfile.ZipFile(z) as f:
+                for info in f.infolist():
+                    nom = nom_zip(info)
+                    if "/Fit/" in nom and not nom.endswith("/"):
+                        yield nom.rsplit("/", 1)[0] + "/"
 
 
 def collecter(chemins: list[Path]) -> dict[date, dict[str, float]]:
@@ -155,6 +184,9 @@ def main() -> int:
     par_jour = collecter(args.chemins)
     if not par_jour:
         print("Aucune donnée Fit trouvée (dossier « Fit/Métriques d'activité quotidiennes » absent ?)", file=sys.stderr)
+        fit = sorted({n for n in _noms_fit(args.chemins)})[:8]
+        if fit:
+            print("Fichiers Fit vus dans les zips (pour comprendre) :", *fit, sep="\n  ", file=sys.stderr)
         return 1
     jours = sorted(par_jour)
     compte: dict[str, int] = {}
