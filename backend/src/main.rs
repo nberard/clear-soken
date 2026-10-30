@@ -117,8 +117,8 @@ pub fn app(state: AppState, static_dir: PathBuf) -> Router {
         ))
         .layer(SetResponseHeaderLayer::overriding(
             HeaderName::from_static("permissions-policy"),
-            // La géolocalisation sert à « Trouver un centre » ; elle reste sur le téléphone.
-            HeaderValue::from_static("camera=(), microphone=(), geolocation=(self)"),
+            // Micro : mémos vocaux (« Ma voix ») ; géolocalisation : « Trouver un centre ». Rien ne quitte le téléphone.
+            HeaderValue::from_static("camera=(), microphone=(self), geolocation=(self)"),
         ))
 }
 
@@ -247,7 +247,11 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), 200);
         assert_eq!(res.headers()["referrer-policy"], "no-referrer");
-        assert!(res.headers()["permissions-policy"].to_str().unwrap().contains("geolocation=(self)"));
+        let politique = res.headers()["permissions-policy"].to_str().unwrap();
+        // Sans « (self) », le navigateur refuse le micro à « Ma voix » même quand l'utilisateur l'autorise
+        assert!(politique.contains("microphone=(self)"));
+        assert!(politique.contains("geolocation=(self)"));
+        assert!(politique.contains("camera=()"));
     }
 
     #[tokio::test]
