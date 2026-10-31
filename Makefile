@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres centres-auto
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -67,6 +67,38 @@ logs:
 qr:               ## QR code à imprimer pour le service (sudo apt install qrencode)
 	qrencode -s 20 -m 2 -o qr-clearsoken.png "https://$(DOMAIN)/"
 	@echo "-> qr-clearsoken.png"
+
+# --- Comptes des potes (amis du serveur, jamais des patients), voir README « Comptes des potes » ---
+COMPTE_CLI = docker compose exec -T clearsoken /app/clear-soken-api compte
+
+compte:           ## crée un compte ou change son mot de passe : make compte NOM=psycho [ROLES=pote,admin]
+	@[ -n "$(NOM)" ] || { echo "Indique le nom : make compte NOM=psycho [ROLES=pote]"; exit 1; }
+	@docker compose ps -q clearsoken | grep -q . || { echo "Clear Soken ne tourne pas : make deploy d'abord"; exit 1; }
+	@printf 'Mot de passe de %s : ' "$(NOM)"; stty -echo; read -r p1; stty echo; echo; \
+	  printf 'Encore une fois : '; stty -echo; read -r p2; stty echo; echo; \
+	  [ "$$p1" = "$$p2" ] || { echo "Les deux mots de passe diffèrent, rien n'a changé"; exit 1; }; \
+	  printf '%s\n' "$$p1" | $(COMPTE_CLI) ajouter "$(NOM)" "$(or $(ROLES),pote)"
+
+compte-roles:     ## change les rôles d'un compte : make compte-roles NOM=psycho ROLES=pote,admin
+	@[ -n "$(NOM)" ] && [ -n "$(ROLES)" ] || { echo "make compte-roles NOM=psycho ROLES=pote"; exit 1; }
+	@$(COMPTE_CLI) roles "$(NOM)" "$(ROLES)"
+
+compte-supprimer: ## supprime un compte : make compte-supprimer NOM=psycho
+	@[ -n "$(NOM)" ] || { echo "make compte-supprimer NOM=psycho"; exit 1; }
+	@$(COMPTE_CLI) supprimer "$(NOM)"
+
+comptes:          ## liste les comptes et leurs rôles
+	@$(COMPTE_CLI) liste
+
+compte-jeton:     ## crée le jeton COMPTES_JETON (.env) que présentent les services qui vérifient un compte
+	@[ -f .env ] || cp .env.example .env
+	@if grep -Eq '^COMPTES_JETON=[A-Za-z0-9]{32,}$$' .env; then echo "-> jeton déjà présent dans .env"; else \
+	  s=$$(openssl rand -hex 32); \
+	  if grep -q '^COMPTES_JETON=' .env; then sed -i "s/^COMPTES_JETON=.*/COMPTES_JETON=$$s/" .env; \
+	  else echo "COMPTES_JETON=$$s" >> .env; fi; \
+	  echo "-> nouveau jeton enregistré dans .env"; \
+	  if docker compose ps -q clearsoken 2>/dev/null | grep -q .; then docker compose up -d clearsoken; fi; \
+	fi
 
 # --- Tableau de bord santé perso (mint-health), voir mint-health/README.md ---
 HEALTH_COMPOSE = cd mint-health && docker compose -f docker-compose.yml -f docker-compose.server.yml
