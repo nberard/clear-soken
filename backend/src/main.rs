@@ -6,6 +6,7 @@
 //! Le tri des centres par distance se fait sur le téléphone : la position
 //! du patient n'est jamais envoyée ici.
 
+mod comptes;
 mod pricing;
 
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -14,7 +15,7 @@ use axum::{
     Json, Router,
     extract::State,
     http::{HeaderName, HeaderValue, header},
-    routing::get,
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use tower_http::{
@@ -24,6 +25,7 @@ use tower_http::{
 };
 use tracing_subscriber::EnvFilter;
 
+pub use comptes::Comptes;
 pub use pricing::Pricing;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -42,12 +44,17 @@ pub struct AppState {
     pub resources: Arc<Vec<Resource>>,
     pub centres: Arc<Vec<serde_json::Value>>,
     pub pricing: Arc<Pricing>,
+    /// Comptes des potes (pas des patients), voir comptes.rs
+    pub comptes: Arc<Comptes>,
+    /// Jeton des services qui vérifient un compte (COMPTES_JETON) ; sans jeton, /api/comptes/verifier est fermé
+    pub comptes_jeton: Option<Arc<str>>,
 }
 
 pub struct Config {
     pub bind: SocketAddr,
     pub static_dir: PathBuf,
     pub resources_file: PathBuf,
+    pub comptes_file: PathBuf,
 }
 
 impl Config {
@@ -62,6 +69,9 @@ impl Config {
                 .into(),
             resources_file: env::var("RESOURCES_FILE")
                 .unwrap_or_else(|_| "data/resources.json".into())
+                .into(),
+            comptes_file: env::var("COMPTES_FILE")
+                .unwrap_or_else(|_| "comptes/comptes.json".into())
                 .into(),
         }
     }
@@ -96,6 +106,7 @@ pub fn app(state: AppState, static_dir: PathBuf) -> Router {
         .route("/resources", get(list_resources))
         .route("/centres", get(list_centres))
         .route("/plans", get(plans))
+        .route("/comptes/verifier", post(comptes::verifier))
         .with_state(state)
         .layer(CompressionLayer::new());
 
@@ -184,6 +195,19 @@ async fn main() {
     if env::args().any(|a| a == "--healthcheck") {
         healthcheck();
     }
+    let args: Vec<String> = env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "compte") {
+        match comptes::cli(&Config::from_env().comptes_file, &args[1..]) {
+            Ok(message) => {
+                println!("{message}");
+                std::process::exit(0)
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1)
+            }
+        }
+    }
 
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
@@ -206,7 +230,12 @@ async fn main() {
         resources: Arc::new(resources),
         centres: Arc::new(centres),
         pricing: Arc::new(pricing),
+        comptes: Arc::new(Comptes::new(config.comptes_file.clone())),
+        comptes_jeton: env::var("COMPTES_JETON").ok().filter(|j| j.len() >= 32).map(Into::into),
     };
+    if state.comptes_jeton.is_none() {
+        tracing::info!("COMPTES_JETON absent (ou moins de 32 caractères) : vérification des comptes fermée");
+    }
     let router = app(state, config.static_dir);
 
     let listener = tokio::net::TcpListener::bind(config.bind).await.expect("bind impossible");
@@ -226,7 +255,13 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
+    const JETON: &str = "jeton-de-test-jeton-de-test-jeton-de-test";
+
     fn test_app() -> Router {
+        test_app_comptes(std::env::temp_dir().join("clear-soken-aucun-compte.json"))
+    }
+
+    fn test_app_comptes(comptes_file: PathBuf) -> Router {
         let resources = load_resources(&"data/resources.json".into());
         let pricing = Arc::new(Pricing::new(2, 30, 0));
         app(
@@ -234,6 +269,8 @@ mod tests {
                 resources: Arc::new(resources),
                 centres: Arc::new(vec![serde_json::json!({"id": "t", "nom": "Test", "lat": 45.0, "lon": 5.0})]),
                 pricing,
+                comptes: Arc::new(Comptes::new(comptes_file)),
+                comptes_jeton: Some(JETON.into()),
             },
             "../frontend/build".into(),
         )
@@ -289,6 +326,36 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let list: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
         assert_eq!(list[0]["id"], "t");
+    }
+
+    #[tokio::test]
+    async fn verification_des_comptes() {
+        let dir = std::env::temp_dir().join(format!("comptes-api-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("comptes.json");
+        comptes::ecrire(
+            &file,
+            &[comptes::Compte { nom: "psycho".into(), hash: comptes::hacher("motdepasse"), roles: vec!["pote".into()] }],
+        )
+        .unwrap();
+        let demande = |jeton: &str, mdp: &str| {
+            Request::post("/api/comptes/verifier")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {jeton}"))
+                .body(Body::from(format!(r#"{{"nom":"Psycho","mot_de_passe":"{mdp}"}}"#)))
+                .unwrap()
+        };
+        let app = test_app_comptes(file);
+        let res = app.clone().oneshot(demande(JETON, "motdepasse")).await.unwrap();
+        assert_eq!(res.status(), 200);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["nom"], "psycho");
+        assert_eq!(json["roles"][0], "pote");
+        assert!(json.get("hash").is_none());
+        assert_eq!(app.clone().oneshot(demande(JETON, "mauvais")).await.unwrap().status(), 401);
+        assert_eq!(app.oneshot(demande("pas-le-bon-jeton", "motdepasse")).await.unwrap().status(), 403);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

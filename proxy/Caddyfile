@@ -10,6 +10,9 @@
 	log {
 		output discard
 	}
+	# Vérification des comptes des potes : réservée aux conteneurs du serveur (réseau Docker « proxy »)
+	@interne path /api/comptes/*
+	respond @interne 404
 	reverse_proxy clearsoken:8080
 }
 

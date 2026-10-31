@@ -96,6 +96,8 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 | `make portal-update` | publie la dernière version du portal (clearmind.studio) |
 | `make proxy-check` | vérifie la config Caddy avant de recharger (sans couper les sites) |
 | `make qr` | QR code à afficher dans le service (`sudo apt install qrencode`) |
+| `make compte NOM=psycho [ROLES=pote,admin]` | crée un compte de pote ou change son mot de passe (voir « Comptes des potes ») |
+| `make comptes` / `make compte-roles NOM=… ROLES=…` / `make compte-supprimer NOM=…` | liste, rôles, suppression |
 
 Pour ajouter un autre site plus tard : un nouveau bloc dans `proxy/Caddyfile`, le conteneur sur le réseau `proxy`, puis `make proxy`.
 
@@ -136,6 +138,26 @@ Tokens (classic), droit `read:packages` uniquement), puis `docker login ghcr.io 
 passe. Docker le garde dans `~/.docker/config.json`.
 
 Secours sans GitHub Actions : `make build-local` sur le serveur, ou `make push` depuis ton PC (après `docker login ghcr.io`).
+
+## À côté : comptes des potes
+
+Des comptes pour **les amis du serveur**, pas pour les patients : l'appli patients reste sans compte et ne s'en sert
+jamais. Ils ouvrent des services perso, à commencer par le portail des téléchargements de
+[`transmission-stack`](https://github.com/nberard/transmission-stack) (`https://downloads.touplitoui.me`, rôle `pote`).
+
+```bash
+make compte-jeton                    # une seule fois : jeton COMPTES_JETON dans .env, redémarre l'appli
+make compte NOM=psycho               # demande le mot de passe (2 fois) ; rôle « pote » par défaut
+make compte NOM=nico ROLES=pote,admin
+make comptes                         # liste les comptes et leurs rôles
+make compte-supprimer NOM=psycho
+```
+
+- Stockés dans le volume Docker `comptes` (`/app/comptes/comptes.json`) : nom, hash **Argon2** du mot de passe, rôles.
+  Pris en compte tout de suite, sans redémarrer.
+- Les services vérifient un compte par `POST /api/comptes/verifier` (`{"nom", "mot_de_passe"}` → `{"nom", "roles"}`),
+  avec `Authorization: Bearer COMPTES_JETON`. Sans jeton dans `.env`, la route est fermée. Caddy la bloque depuis
+  Internet (`proxy/Caddyfile`, `make proxy` après mise à jour) : seuls les conteneurs du réseau `proxy` l'atteignent.
 
 ## À côté : tableau de bord santé perso (`mint-health/`)
 
