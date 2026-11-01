@@ -7,3 +7,4 @@ proxy
 *.png
 !frontend/static/**/*.png
 mint-health/
+ref/
