@@ -1,0 +1,22 @@
+# Les casquettes : une par domaine de ta vie.
+# prive = true  -> tout ce qui touche cette casquette est traité par le modèle LOCAL
+#                  (Ollama sur ton PC), jamais par une API externe.
+# mots_cles     -> servent à router tes questions et à repérer, AVANT tout envoi,
+#                  une conversation sensible (voir memoire/sensible.py).
+
+[pro]
+description = "Travail, projets tech, carrière, recherche d'emploi, clients"
+mots_cles = ["travail", "boulot", "projet", "client", "code", "serveur", "déploiement", "réunion", "carrière", "entretien", "cv", "freelance", "rust", "python", "docker"]
+
+[perso]
+description = "Vie personnelle, famille, amis, loisirs, logement, administratif, finances"
+mots_cles = ["famille", "ami", "amis", "vacances", "voyage", "appartement", "loyer", "impôts", "banque", "budget", "cadeau", "week-end", "film", "musique"]
+
+[sante_physique]
+description = "Sport, sommeil, alimentation, douleurs, rendez-vous médicaux (hors psy)"
+mots_cles = ["sport", "sommeil", "dormir", "course", "nombre de pas", "poids", "régime", "douleur", "médecin", "kiné", "dentiste", "fatigue physique", "musculation"]
+
+[sante_mentale]
+description = "Humeur, stress, anxiété, émotions, thérapie, traitement psy"
+prive = true
+mots_cles = ["anxiété", "angoisse", "stress", "déprime", "dépression", "psy", "psychiatre", "psychologue", "thérapie", "thérapeute", "humeur", "burn-out", "burnout", "panique", "crise", "suicide", "suicidaire", "antidépresseur", "anxiolytique", "hospitalisation", "tcc", "émotion", "pleurer", "solitude", "addiction", "sevrage"]

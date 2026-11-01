@@ -163,6 +163,10 @@ make compte-supprimer NOM=psycho
 
 Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://health.touplitoui.me` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).
 
+## À côté : mémoire perso multi-casquettes (`memoire/`)
+
+Projet séparé lui aussi : un agent qui agrège mes conversations ChatGPT, Claude, Gemini et Mistral dans un arbre de contexte par casquette (pro, perso, santé…). Les casquettes privées (santé mentale) ne sont traitées que par un modèle local. Conteneur et base à part, hors de l'image Clear Soken, site Caddy activé par `make memoire-proxy`. Voir [`memoire/README.md`](memoire/README.md).
+
 ## À côté : Clearmind portal (site public)
 
 La page publique `https://clearmind.studio` (dépôt [`kraken-portal`](https://github.com/nberard/kraken-portal) :
