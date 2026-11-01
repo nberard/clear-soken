@@ -1,0 +1,19 @@
+# Mémoire : pas de port publié, uniquement joignable par Caddy (réseau « proxy »).
+services:
+  memoire:
+    build: .
+    container_name: memoire
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - memoire_data:/data
+      - ./casquettes.toml:/app/casquettes.toml:ro
+    networks: [proxy]
+    mem_limit: 300m   # le serveur n'a que 4 Go, partagés
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  memoire_data:

@@ -1,0 +1,167 @@
+import json
+import zipfile
+
+import pytest
+
+from memoire import agent, config, db, importers, pipeline
+from memoire.llm import Indisponible
+
+CHATGPT = [{
+    "id": "g1", "title": "Déployer Caddy", "create_time": 1730000000, "update_time": 1730000100,
+    "current_node": "c",
+    "mapping": {
+        "a": {"message": None, "parent": None},
+        "b": {"parent": "a", "message": {"author": {"role": "user"}, "create_time": 1730000000,
+                                         "content": {"parts": ["Comment configurer Caddy sur mon serveur docker ?"]}}},
+        "x": {"parent": "b", "message": {"author": {"role": "assistant"}, "content": {"parts": ["brouillon abandonné"]}}},
+        "c": {"parent": "b", "message": {"author": {"role": "assistant"}, "create_time": 1730000050,
+                                         "content": {"parts": ["Utilise un reverse_proxy."]}}},
+    },
+}]
+
+CLAUDE = [{
+    "uuid": "k1", "name": "Nuits difficiles", "created_at": "2026-10-01T10:00:00Z", "updated_at": "2026-10-01T11:00:00Z",
+    "chat_messages": [
+        {"sender": "human", "text": "J'ai beaucoup d'angoisse le soir, je n'arrive pas à me calmer.",
+         "created_at": "2026-10-01T10:00:00Z"},
+        {"sender": "assistant", "text": "", "content": [{"type": "text", "text": "Essayons la cohérence cardiaque."}]},
+    ],
+}]
+
+GEMINI = [
+    {"header": "Gemini Apps", "title": "Prompted idée de cadeau pour ma sœur", "time": "2026-09-01T09:00:00Z",
+     "safeHtmlItem": [{"html": "<p>Un livre &amp; des fleurs</p>"}]},
+    {"header": "Gemini Apps", "title": "Prompted et pour mon père ?", "time": "2026-09-01T09:05:00Z"},
+]
+
+MISTRAL = {"conversations": [{"id": "m1", "title": "Budget", "messages": [
+    {"role": "user", "content": "Aide-moi à faire mon budget du mois"},
+    {"role": "assistant", "content": [{"type": "text", "text": "D'accord."}]}]}]}
+
+
+class Faux:
+    """Faux LLM : enregistre tout ce qu'il reçoit."""
+
+    def __init__(self, nom, local, casquette="pro", panne=False):
+        self.nom, self.local, self.max_chars = nom, local, 50_000
+        self.casquette, self.panne, self.recu = casquette, panne, []
+
+    def completer(self, system, prompt, json_mode=False):
+        if self.panne:
+            raise Indisponible("éteint")
+        self.recu.append(prompt)
+        if json_mode:
+            return json.dumps({"casquette": self.casquette, "autres_casquettes": [],
+                               "sujet": "Sujet test", "resume": f"résumé par {self.nom}"})
+        return f"synthèse {self.nom}"
+
+
+@pytest.fixture
+def cfg(tmp_path):
+    c = config.charger()
+    c.db_path = ":memory:"
+    return c
+
+
+@pytest.fixture
+def conn(cfg):
+    return db.connecter(":memory:")
+
+
+def test_formats_detectes():
+    g = importers.lire_donnees(CHATGPT)
+    assert g[0].source == "chatgpt" and [m.contenu for m in g[0].messages] == [
+        "Comment configurer Caddy sur mon serveur docker ?", "Utilise un reverse_proxy."]  # pas le brouillon
+    k = importers.lire_donnees(CLAUDE)
+    assert k[0].source == "claude" and k[0].messages[0].role == "user"
+    assert k[0].messages[1].contenu == "Essayons la cohérence cardiaque."
+    ge = importers.lire_donnees(GEMINI)
+    assert len(ge) == 1 and ge[0].messages[0].contenu == "idée de cadeau pour ma sœur"
+    assert ge[0].messages[1].contenu == "Un livre & des fleurs"
+    mi = importers.lire_donnees(MISTRAL)
+    assert mi[0].source == "mistral" and mi[0].messages[1].contenu == "D'accord."
+
+
+def test_zip_et_reimport(tmp_path, conn):
+    z = tmp_path / "export.zip"
+    with zipfile.ZipFile(z, "w") as f:
+        f.writestr("conversations.json", json.dumps(CLAUDE))
+    convs = importers.lire_fichier(z)
+    assert importers.enregistrer(conn, convs)["nouvelles"] == 1
+    assert importers.enregistrer(conn, convs)["inchangees"] == 1
+    CLAUDE2 = json.loads(json.dumps(CLAUDE))
+    CLAUDE2[0]["chat_messages"].append({"sender": "human", "text": "Merci"})
+    assert importers.enregistrer(conn, importers.lire_donnees(CLAUDE2))["modifiees"] == 1
+
+
+def _tout_importer(conn):
+    for d in (CHATGPT, CLAUDE, GEMINI, MISTRAL):
+        importers.enregistrer(conn, importers.lire_donnees(d))
+
+
+def test_sensible_traite_en_local_uniquement(conn, cfg):
+    _tout_importer(conn)
+    api, local = Faux("api", False, "pro"), Faux("local", True, "sante_mentale")
+    pipeline.traiter_tout(conn, cfg, api, local)
+    # Aucun prompt envoyé à l'API ne contient la conversation sur l'angoisse.
+    assert not any("angoisse" in p for p in api.recu)
+    assert any("angoisse" in p for p in local.recu)
+    c = conn.execute("SELECT sensible, statut FROM conversations WHERE id='claude:k1'").fetchone()
+    assert c["sensible"] == 1 and c["statut"] == "traite"
+    # La racine API ne contient pas le profil santé mentale.
+    assert not any("résumé par local" in p for p in api.recu)
+    noeuds = {r["id"] for r in conn.execute("SELECT id FROM noeuds WHERE a_refaire = 0")}
+    assert {"racine", "racine:privee", "casquette:sante_mentale", "casquette:pro"} <= noeuds
+
+
+def test_sensible_range_sous_casquette_privee(conn, cfg):
+    """Même si le modèle la classe « pro », une conversation sensible part sous santé mentale."""
+    _tout_importer(conn)
+    api, local = Faux("api", False, "pro"), Faux("local", True, "pro")
+    pipeline.traiter_tout(conn, cfg, api, local)
+    cc = {r["casquette"]: r["principal"] for r in
+          conn.execute("SELECT * FROM conv_casquettes WHERE conv_id='claude:k1'")}
+    assert cc == {"sante_mentale": 1, "pro": 0}
+
+
+def test_local_eteint_met_en_attente(conn, cfg):
+    _tout_importer(conn)
+    api, local = Faux("api", False), Faux("local", True, panne=True)
+    stats = pipeline.traiter_tout(conn, cfg, api, local)
+    assert stats["en_attente_local"] == 1
+    assert not any("angoisse" in p for p in api.recu)
+    # Le PC se rallume : la conversation est reprise.
+    local.panne = False
+    local.casquette = "sante_mentale"
+    pipeline.traiter_tout(conn, cfg, api, local)
+    assert conn.execute("SELECT statut FROM conversations WHERE id='claude:k1'").fetchone()[0] == "traite"
+
+
+def test_agent_route_et_protege(conn, cfg):
+    _tout_importer(conn)
+    api, local = Faux("api", False, "pro"), Faux("local", True, "sante_mentale")
+    pipeline.traiter_tout(conn, cfg, api, local)
+    api.recu.clear(), local.recu.clear()
+
+    r = agent.demander(conn, cfg, "Comment j'ai configuré Caddy sur le serveur ?", api, local)
+    assert r.backend == "api" and "pro" in r.casquettes
+    assert any("reverse_proxy" in p for p in api.recu)
+    assert not any("angoisse" in p for p in api.recu)
+
+    r = agent.demander(conn, cfg, "Est-ce que mon angoisse du soir va mieux ?", api, local)
+    assert r.backend == "local" and "sante_mentale" in r.casquettes
+    assert any("angoisse" in p for p in local.recu)
+
+
+def test_agent_local_eteint(conn, cfg):
+    api, local = Faux("api", False), Faux("local", True, panne=True)
+    r = agent.demander(conn, cfg, "mon anxiété", api, local)
+    assert "modèle local ne répond pas" in r.texte and not api.recu
+
+
+def test_api_injoignable_reste_nouveau(conn, cfg):
+    _tout_importer(conn)
+    api, local = Faux("api", False, panne=True), Faux("local", True, "sante_mentale")
+    stats = pipeline.traiter_tout(conn, cfg, api, local)
+    assert stats["api_injoignable"] == 3
+    assert conn.execute("SELECT statut FROM conversations WHERE id='chatgpt:g1'").fetchone()[0] == "nouveau"
