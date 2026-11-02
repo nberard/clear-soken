@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "traiter":
         api, local = llm.construire(cfg)
         stats = pipeline.traiter_tout(conn, cfg, api, local, a.limite,
-                                      lambda n, tot, cid, s: print(f"[{n}/{tot}] {cid} → {s}"))
+                                      lambda n, tot, cid, s: print(f"[{n}/{tot}] {cid} → {s}", flush=True))
         print(stats)
     elif a.cmd == "demander":
         api, local = llm.construire(cfg)

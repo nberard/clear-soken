@@ -189,3 +189,18 @@ def test_export_claude_multi_zips(tmp_path, conn):
     p = next(c for c in convs if c.id == "claude_projet:p1")
     assert p.titre == "Projet Claude : Clear Soken" and "Réponds en français" in p.messages[0].contenu
     assert importers.enregistrer(conn, convs)["nouvelles"] == 3
+
+
+def test_ollama_injoignable_echoue_vite():
+    """Un Ollama injoignable ne doit pas bloquer : échec rapide, puis plus d'essai pendant 60 s."""
+    import time
+    from memoire.llm import Ollama
+    o = Ollama("http://10.255.255.1:11434", "x")  # adresse non routable : la connexion ne répond jamais
+    t = time.monotonic()
+    with pytest.raises(Indisponible):
+        o.completer("s", "p")
+    assert time.monotonic() - t < 15
+    t = time.monotonic()
+    with pytest.raises(Indisponible):
+        o.completer("s", "p")
+    assert time.monotonic() - t < 0.1

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Protocol
 
 import httpx
@@ -15,6 +16,11 @@ from .config import Config
 
 class Indisponible(Exception):
     """Le backend ne répond pas (ex. PC éteint pour le modèle local)."""
+
+
+# Connexion courte : un hôte injoignable doit échouer vite, pas bloquer des minutes.
+DELAI_API = httpx.Timeout(120, connect=10)
+DELAI_LOCAL = httpx.Timeout(600, connect=5)
 
 
 class LLM(Protocol):
@@ -38,7 +44,7 @@ class Mistral:
         if json_mode:
             corps["response_format"] = {"type": "json_object"}
         try:
-            r = httpx.post("https://api.mistral.ai/v1/chat/completions", json=corps, timeout=120,
+            r = httpx.post("https://api.mistral.ai/v1/chat/completions", json=corps, timeout=DELAI_API,
                            headers={"Authorization": f"Bearer {self.key}"})
             r.raise_for_status()
         except httpx.TransportError as e:
@@ -58,7 +64,7 @@ class Anthropic:
         corps = {"model": self.model, "max_tokens": 2048, "system": system,
                  "messages": [{"role": "user", "content": prompt}]}
         try:
-            r = httpx.post("https://api.anthropic.com/v1/messages", json=corps, timeout=120,
+            r = httpx.post("https://api.anthropic.com/v1/messages", json=corps, timeout=DELAI_API,
                            headers={"x-api-key": self.key, "anthropic-version": "2023-06-01"})
             r.raise_for_status()
         except httpx.TransportError as e:
@@ -70,8 +76,11 @@ class Ollama:
     # Modèle plus petit : on lui envoie moins de texte.
     nom, local, max_chars = "ollama", True, 16_000
 
+    PAUSE = 60  # après un échec, on ne réessaie pas avant 60 s
+
     def __init__(self, url: str, model: str):
         self.url, self.model = url.rstrip("/"), model
+        self._echec_a: float | None = None
 
     def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
         corps = {"model": self.model, "stream": False, "options": {"temperature": 0.2},
@@ -79,10 +88,13 @@ class Ollama:
                               {"role": "user", "content": prompt}]}
         if json_mode:
             corps["format"] = "json"
+        if self._echec_a is not None and time.monotonic() - self._echec_a < self.PAUSE:
+            raise Indisponible(f"Ollama injoignable ({self.url}), nouvel essai dans moins de {self.PAUSE} s")
         try:
-            r = httpx.post(f"{self.url}/api/chat", json=corps, timeout=600)
+            r = httpx.post(f"{self.url}/api/chat", json=corps, timeout=DELAI_LOCAL)
             r.raise_for_status()
         except httpx.TransportError as e:
+            self._echec_a = time.monotonic()
             raise Indisponible(f"Ollama injoignable ({self.url}) : {e}") from e
         return r.json()["message"]["content"]
 
