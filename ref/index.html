@@ -431,7 +431,8 @@ async function ask() {
   if (!clue) { $("clue").focus(); return; }
   if (!suggestOn) {
     $("cands").replaceChildren();
-    const box = document.createElement("div"); box.className = "quick"; box.append(...linkEls(sel.ref, clue));
+    const lab = document.createElement("span"); lab.className = "label"; lab.textContent = "Ta description sur";
+    const box = document.createElement("div"); box.className = "quick"; box.append(lab, ...linkEls(sel.ref, clue));
     $("cands").append(box); return;
   }
   askCtl?.abort(); askCtl = new AbortController();
