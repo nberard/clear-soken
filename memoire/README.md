@@ -84,9 +84,55 @@ docker exec memoire python -m memoire arbre
 docker exec memoire python -m memoire etat
 ```
 
-Ou depuis le navigateur sur `https://$MEMOIRE_HOST` : question, arbre dépliable, import d'un export.
+Ou depuis le navigateur sur `https://$MEMOIRE_HOST` : question, arbre dépliable, import d'un export. Ou depuis Claude, voir ci-dessous.
 
 **Coût** : l'import initial est la partie chère (un appel par conversation, plus les résumés de l'arbre). Avec `mistral-small`, quelques milliers de conversations coûtent de l'ordre de quelques euros. Ensuite, chaque question = un appel. Commence par `python -m memoire traiter --limite 50` pour vérifier le tri.
+
+## Depuis Claude (serveur MCP)
+
+Ta mémoire est aussi un **serveur MCP** : Claude Code, Claude Desktop ou tout client MCP peut la consulter pendant une conversation.
+
+| Outil | Rôle |
+|---|---|
+| `casquettes` | liste des casquettes et nombre de conversations |
+| `vue_ensemble` | la racine de l'arbre |
+| `profil` | profil d'une casquette et ses sujets |
+| `sujet` | résumé d'un sujet et ses conversations |
+| `rechercher` | recherche plein texte dans toutes tes conversations |
+| `conversation` | relire une conversation entière |
+| `noter` | enregistrer un résumé de la session en cours ; il est classé au prochain `traiter` |
+
+**Confidentialité** : ce que renvoie un outil MCP est lu par l'IA qui l'appelle, donc envoyé à son fournisseur (Anthropic pour Claude). C'est pourquoi **les casquettes privées et les conversations sensibles sont invisibles par MCP**. Pour les ouvrir quand même, ajoute `MEMOIRE_MCP_PRIVE=1` dans `.env`, en connaissance de cause.
+
+**Claude Desktop** (par SSH, aucun port à ouvrir) — dans `claude_desktop_config.json` :
+
+```json
+{
+  "mcpServers": {
+    "memoire": {
+      "command": "ssh",
+      "args": ["utilisateur@5.39.76.84", "docker", "exec", "-i", "memoire", "python", "-m", "memoire.mcp_serveur"]
+    }
+  }
+}
+```
+
+Il faut une clé SSH sans mot de passe à taper (ou un agent SSH), sinon Claude Desktop ne peut pas se connecter.
+
+**Claude Code** — même chose par SSH :
+
+```bash
+claude mcp add memoire -- ssh utilisateur@5.39.76.84 docker exec -i memoire python -m memoire.mcp_serveur
+```
+
+ou par HTTP, à travers Caddy et son mot de passe :
+
+```bash
+claude mcp add --transport http memoire https://$MEMOIRE_HOST/mcp \
+  --header "Authorization: Basic $(printf 'utilisateur:motdepasse' | base64)"
+```
+
+Le serveur HTTP refuse les requêtes dont l'en-tête Host n'est pas `MEMOIRE_HOST` (protection contre le DNS rebinding) : renseigne aussi `MEMOIRE_HOST` dans `memoire/.env`.
 
 ## Développer
 
@@ -106,10 +152,10 @@ MEMOIRE_DB=./data/memoire.db uvicorn memoire.web:app --port 8770
 | `memoire/agent.py` | routage d'une question et assemblage du contexte |
 | `memoire/llm.py` | backends Mistral, Claude, Ollama |
 | `memoire/web.py` | interface web et API |
+| `memoire/mcp_serveur.py` | serveur MCP (stdio et HTTP sur `/mcp`) |
 
 ## Prochaines étapes
 
-- Serveur **MCP** pour interroger ta mémoire directement depuis Claude Desktop / Claude Code.
 - Source **mint-health** (sommeil, pas, journal vocal) pour la casquette santé physique.
 - Recherche par le sens (embeddings) en plus de la recherche plein texte.
 - Correction manuelle d'un classement depuis l'interface.
