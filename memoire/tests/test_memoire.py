@@ -208,9 +208,10 @@ def test_ollama_injoignable_echoue_vite():
 
 def test_cle_manquante_message_clair(cfg, capsys, monkeypatch):
     from memoire import __main__ as cli, llm
-    cfg.mistral_key = ""
+    cfg.api, cfg.mistral_key = "mistral", ""
     with pytest.raises(llm.CleManquante, match="MISTRAL_API_KEY"):
         llm.construire(cfg)
+    monkeypatch.setenv("MEMOIRE_API", "mistral")
     monkeypatch.setenv("MISTRAL_API_KEY", "")
     monkeypatch.setenv("MEMOIRE_DB", ":memory:")
     assert cli.main(["traiter"]) == 1
