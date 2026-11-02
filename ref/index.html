@@ -107,6 +107,10 @@ textarea { resize: vertical; min-height: 46px; }
 .said { background: var(--bubble); border-radius: 16px 16px 16px 4px; padding: 10px 14px; font-weight: 600; font-size: 1.05rem; overflow-wrap: anywhere; justify-self: start; max-width: 100%; }
 .said .tt { font-size: .75rem; font-weight: 700; color: var(--muted); margin-left: 8px; }
 .loot { display: grid; gap: 4px; padding-left: 4px; }
+.item { display: grid; gap: 8px; }
+.item + .item { border-top: 1px solid var(--line); padding-top: 12px; }
+.add-ref { justify-self: start; color: var(--accent); font-weight: 700; padding-left: 4px; }
+.add-ref:hover { color: var(--accent); }
 .loot .ttl { font-family: var(--display); font-weight: 600; font-size: 1.15rem; overflow-wrap: anywhere; }
 .loot .ttl .yr { font-family: var(--body); color: var(--muted); font-weight: 400; font-size: 1rem; }
 .rar { display: inline-block; font-family: var(--body); font-size: .75rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--c, var(--accent-soft)); color: var(--tag-ink); vertical-align: middle; margin-left: 4px; }
@@ -380,48 +384,73 @@ function render() {
   if (!refs.length) { list.innerHTML = '<div class="empty"><b>Rien pour l\'instant</b></div>'; return; }
   if (!shown.length) { list.innerHTML = '<div class="empty"><b>Aucun résultat</b>Rien ne correspond à ta recherche.</div>'; return; }
 
-  list.replaceChildren(...shown.map(r => {
-    const c = document.createElement("article"); c.className = "card"; c.style.setProperty("--c", colorFor(r.refType));
+  // Une carte par phrase : plusieurs références peuvent partager la même phrase
+  const groups = new Map();
+  for (const r of shown) {
+    const key = norm(r.trigger).replace(/\s+/g, " ") + "|" + (r.srcLang || "");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  list.replaceChildren(...[...groups.values()].map(items => {
+    const first = items[0];
+    const c = document.createElement("article"); c.className = "card";
     const said = document.createElement("div"); said.className = "said";
-    said.append("« " + r.trigger + " »");
-    if (r.trigType) { const tt = document.createElement("span"); tt.className = "tt"; tt.textContent = r.trigType; said.append(tt); }
-
-    const loot = document.createElement("div"); loot.className = "loot";
-    const ttl = document.createElement("div"); ttl.className = "ttl";
-    ttl.append(r.refTitle);
-    if (r.refYear) { const y = document.createElement("span"); y.className = "yr"; y.textContent = " (" + r.refYear + ")"; ttl.append(y); }
-    const rar = document.createElement("span"); rar.className = "rar"; rar.textContent = r.refType || ""; ttl.append(" ", rar);
-    loot.append(ttl);
-    if (r.refDetail) { const d = document.createElement("div"); d.className = "det"; d.textContent = r.refDetail; loot.append(d); }
-    if (r.note) { const n = document.createElement("div"); n.className = "note"; n.textContent = r.note; loot.append(n); }
-
-    if (r.srcLang || r.refLang) {
-      const lg = document.createElement("div"); lg.className = "langs";
-      const diff = r.srcLang && r.refLang && r.srcLang !== r.refLang;
-      const a = document.createElement("span"); a.className = "lg" + (diff ? " diff" : ""); a.textContent = langCode(r.srcLang) || "?"; a.title = "Dit en " + (r.srcLang || "?");
-      const b = document.createElement("span"); b.className = "lg" + (diff ? " diff" : ""); b.textContent = langCode(r.refLang) || "?"; b.title = "Référence en " + (r.refLang || "?");
-      lg.append(a, "→", b);
-      if (diff) lg.append(" · autre langue");
-      loot.append(lg);
-    }
-    const foot = document.createElement("div"); foot.className = "foot";
-    const links = document.createElement("div"); links.className = "quick"; links.append(...linkEls(r.refType, r.refTitle, r.refYear));
-    const act = document.createElement("div"); act.className = "row";
-    if (pendingDelete === r.id) {
-      const lab = document.createElement("span"); lab.className = "status"; lab.textContent = "Supprimer ?";
-      const no = document.createElement("button"); no.className = "btn ghost"; no.textContent = "Non"; no.onclick = () => { pendingDelete = null; render(); };
-      const yes = document.createElement("button"); yes.className = "btn danger"; yes.textContent = "Supprimer";
-      yes.onclick = () => { pendingDelete = null; deleteRef(r.id).catch(showErr); };
-      act.append(lab, no, yes);
-    } else {
-      const e = document.createElement("button"); e.className = "link"; e.textContent = "Modifier"; e.onclick = () => startEdit(r);
-      const d = document.createElement("button"); d.className = "link del"; d.textContent = "Supprimer"; d.onclick = () => { pendingDelete = r.id; render(); };
-      act.append(e, d);
-    }
-    foot.append(links, act);
-    c.append(said, loot, foot);
+    said.append("« " + first.trigger + " »");
+    const meta = [first.trigType, langCode(first.srcLang)].filter(Boolean).join(" · ");
+    if (meta) { const tt = document.createElement("span"); tt.className = "tt"; tt.textContent = meta; said.append(tt); }
+    c.append(said);
+    items.forEach(r => c.append(refItem(r)));
+    const add = document.createElement("button"); add.type = "button"; add.className = "link add-ref";
+    add.textContent = "+ Autre référence"; add.onclick = () => addAnother(first);
+    c.append(add);
     return c;
   }));
+}
+
+function refItem(r) {
+  const item = document.createElement("div"); item.className = "item";
+  const loot = document.createElement("div"); loot.className = "loot";
+  const ttl = document.createElement("div"); ttl.className = "ttl";
+  ttl.append(r.refTitle);
+  if (r.refYear) { const y = document.createElement("span"); y.className = "yr"; y.textContent = " (" + r.refYear + ")"; ttl.append(y); }
+  const rar = document.createElement("span"); rar.className = "rar"; rar.style.setProperty("--c", colorFor(r.refType)); rar.textContent = r.refType || ""; ttl.append(" ", rar);
+  if (r.refLang) {
+    const lg = document.createElement("span"); lg.className = "lg" + (r.srcLang && r.srcLang !== r.refLang ? " diff" : "");
+    lg.textContent = langCode(r.refLang); lg.title = "Référence en " + r.refLang; ttl.append(" ", lg);
+  }
+  loot.append(ttl);
+  if (r.refDetail) { const d = document.createElement("div"); d.className = "det"; d.textContent = r.refDetail; loot.append(d); }
+  if (r.note) { const n = document.createElement("div"); n.className = "note"; n.textContent = r.note; loot.append(n); }
+
+  const foot = document.createElement("div"); foot.className = "foot";
+  const links = document.createElement("div"); links.className = "quick"; links.append(...linkEls(r.refType, r.refTitle, r.refYear));
+  const act = document.createElement("div"); act.className = "row";
+  if (pendingDelete === r.id) {
+    const lab = document.createElement("span"); lab.className = "status"; lab.textContent = "Supprimer ?";
+    const no = document.createElement("button"); no.className = "btn ghost"; no.textContent = "Non"; no.onclick = () => { pendingDelete = null; render(); };
+    const yes = document.createElement("button"); yes.className = "btn danger"; yes.textContent = "Supprimer";
+    yes.onclick = () => { pendingDelete = null; deleteRef(r.id).catch(showErr); };
+    act.append(lab, no, yes);
+  } else {
+    const e = document.createElement("button"); e.className = "link"; e.textContent = "Modifier"; e.onclick = () => startEdit(r);
+    const d = document.createElement("button"); d.className = "link del"; d.textContent = "Supprimer"; d.onclick = () => { pendingDelete = r.id; render(); };
+    act.append(e, d);
+  }
+  foot.append(links, act);
+  item.append(loot, foot);
+  return item;
+}
+
+// Prépare le formulaire avec la même phrase, pour y ajouter une autre référence
+function addAnother(r) {
+  resetForm();
+  $("trigger").value = r.trigger || "";
+  if (r.trigType) { if (!cats.trig.includes(r.trigType)) cats.trig.push(r.trigType); sel.trig = r.trigType; }
+  if (r.srcLang) { if (!cats.lang.includes(r.srcLang)) cats.lang.push(r.srcLang); sel.srcLang = r.srcLang; }
+  $("formTitle").textContent = "Autre référence pour cette phrase";
+  renderCats();
+  $("form").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("refTitle").focus({ preventScroll: true });
 }
 
 /* ---------- trouver la référence (Claude) ---------- */
