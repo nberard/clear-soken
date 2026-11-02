@@ -74,16 +74,20 @@ class Anthropic:
 
 class Ollama:
     # Modèle plus petit : on lui envoie moins de texte.
-    nom, local, max_chars = "ollama", True, 16_000
+    nom, local = "ollama", True
 
     PAUSE = 60  # après un échec, on ne réessaie pas avant 60 s
 
-    def __init__(self, url: str, model: str):
+    def __init__(self, url: str, model: str, max_chars: int = 10_000, num_ctx: int = 4096):
+        # num_ctx = taille du contexte en tokens (plus grand = plus de RAM).
+        # max_chars doit tenir dedans : ~3 caractères par token en français, plus la réponse.
         self.url, self.model = url.rstrip("/"), model
+        self.max_chars, self.num_ctx = max_chars, num_ctx
         self._echec_a: float | None = None
 
     def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
-        corps = {"model": self.model, "stream": False, "options": {"temperature": 0.2},
+        corps = {"model": self.model, "stream": False,
+                 "options": {"temperature": 0.2, "num_ctx": self.num_ctx},
                  "messages": [{"role": "system", "content": system},
                               {"role": "user", "content": prompt}]}
         if json_mode:
@@ -106,7 +110,7 @@ class CleManquante(Exception):
 def construire(cfg: Config, verifier: bool = True) -> tuple[LLM, LLM]:
     """Renvoie (api, local). Lève CleManquante si la clé de l'API choisie est vide.
     Avec MEMOIRE_API=ollama, tout passe par le modèle local : aucune clé, rien ne sort."""
-    local = Ollama(cfg.ollama_url, cfg.ollama_model)
+    local = Ollama(cfg.ollama_url, cfg.ollama_model, cfg.ollama_max_chars, cfg.ollama_num_ctx)
     if cfg.api in ("ollama", "local"):
         return local, local
     cle, var = ((cfg.anthropic_key, "ANTHROPIC_API_KEY") if cfg.api == "anthropic"
