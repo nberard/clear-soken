@@ -204,3 +204,14 @@ def test_ollama_injoignable_echoue_vite():
     with pytest.raises(Indisponible):
         o.completer("s", "p")
     assert time.monotonic() - t < 0.1
+
+
+def test_cle_manquante_message_clair(cfg, capsys, monkeypatch):
+    from memoire import __main__ as cli, llm
+    cfg.mistral_key = ""
+    with pytest.raises(llm.CleManquante, match="MISTRAL_API_KEY"):
+        llm.construire(cfg)
+    monkeypatch.setenv("MISTRAL_API_KEY", "")
+    monkeypatch.setenv("MEMOIRE_DB", ":memory:")
+    assert cli.main(["traiter"]) == 1
+    assert "MISTRAL_API_KEY est vide" in capsys.readouterr().err

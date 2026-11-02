@@ -31,6 +31,12 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = config.charger()
     conn = db.connecter(cfg.db_path)
+    if a.cmd in ("traiter", "demander"):
+        try:
+            llm.construire(cfg)
+        except llm.CleManquante as e:
+            print(f"Erreur : {e}", file=sys.stderr)
+            return 1
 
     if a.cmd == "importer":
         for f in a.fichiers:

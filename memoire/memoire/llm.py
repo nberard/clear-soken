@@ -99,8 +99,17 @@ class Ollama:
         return r.json()["message"]["content"]
 
 
-def construire(cfg: Config) -> tuple[LLM, LLM]:
-    """Renvoie (api, local)."""
+class CleManquante(Exception):
+    """Clé d'API absente : erreur de configuration, pas une panne réseau."""
+
+
+def construire(cfg: Config, verifier: bool = True) -> tuple[LLM, LLM]:
+    """Renvoie (api, local). Lève CleManquante si la clé de l'API choisie est vide."""
+    cle, var = ((cfg.anthropic_key, "ANTHROPIC_API_KEY") if cfg.api == "anthropic"
+                else (cfg.mistral_key, "MISTRAL_API_KEY"))
+    if verifier and not cle.strip():
+        raise CleManquante(f"{var} est vide : renseigne-la dans memoire/.env puis relance "
+                           "« make memoire-deploy » pour que le conteneur la prenne en compte.")
     if cfg.api == "anthropic":
         api: LLM = Anthropic(cfg.anthropic_key, cfg.anthropic_model)
     else:
