@@ -215,3 +215,15 @@ def test_cle_manquante_message_clair(cfg, capsys, monkeypatch):
     monkeypatch.setenv("MEMOIRE_DB", ":memory:")
     assert cli.main(["traiter"]) == 1
     assert "MISTRAL_API_KEY est vide" in capsys.readouterr().err
+
+
+def test_mode_tout_local(conn, cfg):
+    from memoire import llm
+    cfg.api, cfg.mistral_key = "ollama", ""
+    api, local = llm.construire(cfg)  # pas de clé exigée
+    assert api is local and local.local
+    # Le PC éteint : tout attend en local, rien n'est perdu.
+    local.completer = lambda *a, **k: (_ for _ in ()).throw(Indisponible("éteint"))
+    _tout_importer(conn)
+    stats = pipeline.traiter_tout(conn, cfg, api, local)
+    assert stats == {"en_attente_local": 4, "noeuds_refaits": 0, "noeuds_en_attente_local": 0}

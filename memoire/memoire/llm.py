@@ -104,7 +104,11 @@ class CleManquante(Exception):
 
 
 def construire(cfg: Config, verifier: bool = True) -> tuple[LLM, LLM]:
-    """Renvoie (api, local). Lève CleManquante si la clé de l'API choisie est vide."""
+    """Renvoie (api, local). Lève CleManquante si la clé de l'API choisie est vide.
+    Avec MEMOIRE_API=ollama, tout passe par le modèle local : aucune clé, rien ne sort."""
+    local = Ollama(cfg.ollama_url, cfg.ollama_model)
+    if cfg.api in ("ollama", "local"):
+        return local, local
     cle, var = ((cfg.anthropic_key, "ANTHROPIC_API_KEY") if cfg.api == "anthropic"
                 else (cfg.mistral_key, "MISTRAL_API_KEY"))
     if verifier and not cle.strip():
@@ -114,7 +118,7 @@ def construire(cfg: Config, verifier: bool = True) -> tuple[LLM, LLM]:
         api: LLM = Anthropic(cfg.anthropic_key, cfg.anthropic_model)
     else:
         api = Mistral(cfg.mistral_key, cfg.mistral_model)
-    return api, Ollama(cfg.ollama_url, cfg.ollama_model)
+    return api, local
 
 
 def extraire_json(texte: str) -> dict:
