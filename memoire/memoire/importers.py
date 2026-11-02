@@ -172,6 +172,38 @@ def lire_generique(d: Any, source: str = "mistral") -> Iterable[Conv]:
                        _date(c.get("updated_at") or c.get("updatedAt")), msgs)
 
 
+# --- Claude : mémoires et projets (export claude.ai en plusieurs zips) --------
+# memories-000.zip : {"memory_files": [{path, content, updated_at}]}
+# projects-000.zip : un fichier par projet {uuid, name, description, prompt_template}
+# Chacun devient une « conversation » d'un seul message, classée comme les autres.
+
+def _est_memoire_claude(d: Any) -> bool:
+    return isinstance(d, dict) and isinstance(d.get("memory_files"), list)
+
+
+def lire_memoire_claude(d: dict) -> Iterable[Conv]:
+    for f in d["memory_files"]:
+        contenu = str(f.get("content") or "").strip()
+        if contenu:
+            chemin = str(f.get("path") or "memoire")
+            date = _date(f.get("updated_at"))
+            yield Conv("claude_memoire", chemin, f"Mémoire Claude : {chemin}", date, date,
+                       [Msg("user", contenu, date)])
+
+
+def _est_projet_claude(d: Any) -> bool:
+    return isinstance(d, dict) and "prompt_template" in d and "uuid" in d
+
+
+def lire_projet_claude(d: dict) -> Iterable[Conv]:
+    morceaux = [str(d.get(k) or "").strip() for k in ("description", "prompt_template")]
+    contenu = "\n\n".join(m for m in morceaux if m)
+    if contenu:
+        yield Conv("claude_projet", str(d["uuid"]), f"Projet Claude : {d.get('name') or 'sans nom'}",
+                   _date(d.get("created_at")), _date(d.get("updated_at")),
+                   [Msg("user", contenu, _date(d.get("updated_at")))])
+
+
 # --- Détection et lecture de fichiers ----------------------------------------
 
 def lire_donnees(d: Any, source: str | None = None) -> list[Conv]:
@@ -179,6 +211,10 @@ def lire_donnees(d: Any, source: str | None = None) -> list[Conv]:
         return list(lire_chatgpt(d))
     if source in (None, "claude") and _est_claude(d):
         return list(lire_claude(d))
+    if source in (None, "claude") and _est_memoire_claude(d):
+        return list(lire_memoire_claude(d))
+    if source in (None, "claude") and _est_projet_claude(d):
+        return list(lire_projet_claude(d))
     if source in (None, "gemini") and _est_gemini(d):
         return list(lire_gemini(d))
     if _est_generique(d):
