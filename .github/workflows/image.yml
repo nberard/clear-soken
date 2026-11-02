@@ -7,9 +7,9 @@ name: Image Docker
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "mint-health/**", "proxy/**"]
+    paths-ignore: ["**.md", "mint-health/**", "proxy/**", "ref/**"]
   pull_request:
-    paths-ignore: ["**.md", "mint-health/**", "proxy/**"]
+    paths-ignore: ["**.md", "mint-health/**", "proxy/**", "ref/**"]
   workflow_dispatch:
 
 concurrency:

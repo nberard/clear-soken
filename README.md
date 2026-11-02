@@ -211,6 +211,31 @@ Le lien donne accès à tout : ne le partage qu'avec qui doit lire les rapports 
 site ouvert depuis un rapport (`Referrer-Policy: no-referrer`), n'apparaît dans aucun journal et le site n'est pas
 indexé.
 
+## À côté : « Ça me fait penser à… » (`ref/`, perso)
+
+Projet séparé, sans lien avec l'appli patients : un carnet pour noter ce qu'on m'a dit (mot, phrase, situation) et la
+référence que ça m'évoque (chanson, film, série…), avec la langue de chacun. Servi sur `https://ref.touplitoui.me`
+derrière un mot de passe. Une page (`ref/index.html`) et un petit serveur Python (`ref/server.py`) qui garde tout dans
+un fichier JSON (volume Docker `ref_data`). Le bouton « Chercher » demande des titres à Claude si
+`ANTHROPIC_API_KEY` est renseigné dans `ref/.env`. Sans clé, il propose seulement des liens IMDb, YouTube, Spotify et
+Google.
+
+### Mise en place (une fois)
+
+1. **DNS** : enregistrement **A** `ref.touplitoui.me` vers l'IP du serveur.
+2. **Mot de passe** : dans `proxy/.env`, `REF_HOST`, `REF_AUTH_USER` et `REF_AUTH_HASH` (voir `proxy/.env.example` ;
+   hash : `docker run --rm caddy:2 caddy hash-password --plaintext 'mot-de-passe'`).
+3. `git pull && make ref-deploy` (crée `ref/.env` : ajoute la clé Claude si tu veux le bouton « Chercher »).
+4. `make ref-proxy` : vérifie la config et recharge Caddy.
+
+| Commande | Effet |
+|---|---|
+| `make ref-deploy` | reconstruit et redémarre (après `git pull` ou une modification de `ref/.env`) |
+| `make ref-backup` | copie les références dans `ref/backups/` |
+| `make ref-logs` | journaux du serveur |
+
+Tests : `cd ref && python3 -m unittest test_server`.
+
 ## Ma sortie (`/sortie/`)
 
 Préparer une sortie de clinique, d'une semaine thérapeutique à plusieurs mois, **avec l'équipe soignante** :

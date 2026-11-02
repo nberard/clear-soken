@@ -1,0 +1,20 @@
+# « Ça me fait penser à… » (ref.touplitoui.me) : make ref-deploy puis make ref-proxy
+services:
+  ref:
+    build: .
+    container_name: ref
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ref_data:/data   # les références : à sauvegarder (make ref-backup)
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true   # créé par make proxy
+
+volumes:
+  ref_data:
