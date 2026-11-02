@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--source", choices=["chatgpt", "claude", "gemini", "mistral"])
     t = sp.add_parser("traiter", help="classe/résume les nouvelles conversations et refait l'arbre")
     t.add_argument("--limite", type=int)
+    t.add_argument("--tout", action="store_true", help="reclasse aussi les conversations déjà traitées")
     d = sp.add_parser("demander", help="pose une question à ta mémoire")
     d.add_argument("question")
     d.add_argument("--casquette", action="append")
@@ -48,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "traiter":
         api, local = llm.construire(cfg)
         stats = pipeline.traiter_tout(conn, cfg, api, local, a.limite,
-                                      lambda n, tot, cid, s: print(f"[{n}/{tot}] {cid} → {s}", flush=True))
+                                      lambda n, tot, cid, s: print(f"[{n}/{tot}] {cid} → {s}", flush=True),
+                                      tout=a.tout)
         print(stats)
     elif a.cmd == "demander":
         api, local = llm.construire(cfg)

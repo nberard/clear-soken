@@ -228,3 +228,36 @@ def test_mode_tout_local(conn, cfg):
     _tout_importer(conn)
     stats = pipeline.traiter_tout(conn, cfg, api, local)
     assert stats == {"en_attente_local": 4, "noeuds_refaits": 0, "noeuds_en_attente_local": 0}
+
+
+def test_tout_local_garde_le_classement_du_modele(conn, cfg):
+    """En mode tout local, une conversation sensible reste dans la casquette choisie par le modèle,
+    mais sa branche est marquée sensible."""
+    _tout_importer(conn)
+    loc = Faux("local", True, "sante_physique")
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    cc = conn.execute("SELECT casquette FROM conv_casquettes WHERE conv_id='claude:k1' AND principal=1").fetchone()
+    assert cc[0] == "sante_physique"
+    assert conn.execute("SELECT sensible FROM noeuds WHERE id='casquette:sante_physique'").fetchone()[0] == 1
+
+
+def test_traiter_tout_reclasse(conn, cfg):
+    _tout_importer(conn)
+    loc = Faux("local", True, "pro")
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    n = len(loc.recu)
+    stats = pipeline.traiter_tout(conn, cfg, loc, loc, tout=True)
+    assert stats["traite"] == 4 and len(loc.recu) > n
+
+
+def test_migration_noeuds_sensible(tmp_path):
+    import sqlite3
+    p = tmp_path / "ancienne.db"
+    old = sqlite3.connect(p)
+    old.execute("CREATE TABLE noeuds (id TEXT PRIMARY KEY, niveau TEXT NOT NULL, casquette TEXT, titre TEXT, "
+                "resume TEXT, a_refaire INTEGER NOT NULL DEFAULT 1, maj_le TEXT)")
+    old.execute("INSERT INTO noeuds (id, niveau, a_refaire) VALUES ('racine', 'racine', 0)")
+    old.commit(); old.close()
+    c = db.connecter(str(p))
+    r = c.execute("SELECT sensible, a_refaire FROM noeuds WHERE id='racine'").fetchone()
+    assert tuple(r) == (0, 1)

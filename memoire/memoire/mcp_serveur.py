@@ -39,6 +39,19 @@ def _visible(casquette: str | None) -> bool:
     return PRIVE_AUTORISE or casquette not in cfg.privees
 
 
+MASQUE = ("(résumé masqué : cette branche contient des éléments sensibles, consultable "
+          "uniquement en local)")
+
+
+def _resume_visible(n) -> str | None:
+    """Le résumé d'un nœud, ou None s'il contient du sensible et que le privé n'est pas autorisé."""
+    if n is None or not n["resume"]:
+        return None
+    if n["sensible"] and not PRIVE_AUTORISE:
+        return MASQUE
+    return n["resume"]
+
+
 def _casquette_inconnue(casquette: str) -> str | None:
     if casquette not in cfg.casquettes:
         return f"Casquette inconnue. Disponibles : {', '.join(cfg.casquettes)}"
@@ -63,10 +76,10 @@ def casquettes() -> str:
 def vue_ensemble() -> str:
     """Vue d'ensemble courte de la vie de l'utilisateur, toutes casquettes visibles confondues."""
     nid = "racine:privee" if PRIVE_AUTORISE else "racine"
-    r = conn.execute("SELECT resume, maj_le FROM noeuds WHERE id = ?", (nid,)).fetchone()
+    r = conn.execute("SELECT resume, maj_le, sensible FROM noeuds WHERE id = ?", (nid,)).fetchone()
     if not r or not r["resume"]:
         return "Pas encore de vue d'ensemble : il faut importer des exports puis lancer `memoire traiter`."
-    return f"{r['resume']}\n\n(mis à jour le {(r['maj_le'] or '')[:10]})"
+    return f"{_resume_visible(r)}\n\n(mis à jour le {(r['maj_le'] or '')[:10]})"
 
 
 @serveur.tool()
@@ -74,12 +87,15 @@ def profil(casquette: str) -> str:
     """Profil d'une casquette (situation, sujets en cours, tendances) et la liste de ses sujets."""
     if err := _casquette_inconnue(casquette):
         return err
-    p = conn.execute("SELECT resume FROM noeuds WHERE id = ?", (f"casquette:{casquette}",)).fetchone()
-    sujets = conn.execute("SELECT titre, maj_le FROM noeuds WHERE niveau = 'sujet' AND casquette = ? "
+    p = conn.execute("SELECT resume, sensible FROM noeuds WHERE id = ?", (f"casquette:{casquette}",)).fetchone()
+    sujets = conn.execute("SELECT titre, maj_le, sensible FROM noeuds WHERE niveau = 'sujet' AND casquette = ? "
                           "ORDER BY maj_le DESC", (casquette,)).fetchall()
-    texte = (p["resume"] if p and p["resume"] else "(profil pas encore construit)")
-    if sujets:
-        texte += "\n\nSujets :\n" + "\n".join(f"- {s['titre']} ({(s['maj_le'] or '')[:10]})" for s in sujets)
+    texte = _resume_visible(p) or "(profil pas encore construit)"
+    visibles = [s for s in sujets if PRIVE_AUTORISE or not s["sensible"]]
+    if visibles:
+        texte += "\n\nSujets :\n" + "\n".join(f"- {s['titre']} ({(s['maj_le'] or '')[:10]})" for s in visibles)
+    if len(visibles) < len(sujets):
+        texte += f"\n({len(sujets) - len(visibles)} sujet(s) sensible(s) masqué(s))"
     return texte
 
 
@@ -88,9 +104,9 @@ def sujet(casquette: str, titre: str) -> str:
     """Résumé d'un sujet précis d'une casquette, et les conversations qui le composent."""
     if err := _casquette_inconnue(casquette):
         return err
-    n = conn.execute("SELECT id, titre, resume FROM noeuds WHERE niveau = 'sujet' AND casquette = ? "
+    n = conn.execute("SELECT id, titre, resume, sensible FROM noeuds WHERE niveau = 'sujet' AND casquette = ? "
                      "AND lower(titre) = lower(?)", (casquette, titre)).fetchone()
-    if not n:
+    if not n or (n["sensible"] and not PRIVE_AUTORISE):
         return "Sujet introuvable. Utilise `profil` pour voir la liste des sujets."
     convs = conn.execute(
         """SELECT c.id, c.titre, c.source, c.cree_le, c.sensible FROM conversations c
@@ -99,7 +115,7 @@ def sujet(casquette: str, titre: str) -> str:
         (casquette, n["titre"])).fetchall()
     liste = "\n".join(f"- [{c['id']}] {c['titre']} ({c['source']}, {(c['cree_le'] or '')[:10]})"
                       for c in convs if PRIVE_AUTORISE or not c["sensible"])
-    return f"{n['resume'] or '(pas encore résumé)'}\n\nConversations :\n{liste or '(aucune visible)'}"
+    return f"{_resume_visible(n) or '(pas encore résumé)'}\n\nConversations :\n{liste or '(aucune visible)'}"
 
 
 @serveur.tool()

@@ -56,7 +56,11 @@ Réponds avec un objet JSON :
 {{"casquette": "<la casquette principale>",
   "autres_casquettes": ["<autres casquettes réellement concernées>"],
   "sujet": "<sujet court, 2 à 5 mots, réutilisable entre conversations>",
-  "resume": "<5 lignes max : faits, décisions, ressentis, ce qui reste à faire>"}}"""
+  "resume": "<5 lignes max : faits, décisions, ressentis, ce qui reste à faire>"}}
+
+Le résumé est en français uniquement et s'adresse à l'utilisateur à la 2e personne (« tu »).
+Choisis la casquette selon le sujet réel : une douleur ou un trouble du corps va dans
+la santé physique, même si la conversation est délicate."""
 
 
 def traiter_conversation(conn: sqlite3.Connection, cfg: Config, conv_id: str,
@@ -88,7 +92,8 @@ def traiter_conversation(conn: sqlite3.Connection, cfg: Config, conv_id: str,
     # Une conversation sensible est rangée sous une casquette privée : les nœuds des
     # casquettes non privées sont résumés par l'API et ne doivent jamais la contenir.
     # Sa casquette d'origine reste un lien (visible depuis le local).
-    if sensible and principale not in cfg.privees:
+    # En mode tout local (api.local), rien ne sort : on garde le classement du modèle.
+    if sensible and principale not in cfg.privees and not api.local:
         privee = next((a for a in autres if a in cfg.privees), None) or sorted(cfg.privees)[0]
         autres = (autres | {principale}) - {privee}
         principale = privee
@@ -138,7 +143,7 @@ def reconstruire_arbre(conn: sqlite3.Connection, cfg: Config, api: LLM, local: L
     def llm_pour(casquette: str | None) -> LLM:
         return local if casquette in cfg.privees else api
 
-    def refaire(nid: str, llm: LLM, consigne: str, enfants: list[str]) -> None:
+    def refaire(nid: str, llm: LLM, consigne: str, enfants: list[str], sensible: bool = False) -> None:
         if not enfants:
             with conn:
                 conn.execute("DELETE FROM noeuds WHERE id = ?", (nid,))
@@ -149,53 +154,61 @@ def reconstruire_arbre(conn: sqlite3.Connection, cfg: Config, api: LLM, local: L
             stats["en_attente_local"] += 1
             return
         with conn:
-            conn.execute("UPDATE noeuds SET resume=?, a_refaire=0, maj_le=? WHERE id=?",
-                         (resume, _maintenant(), nid))
+            # sensible = la branche contient une conversation sensible : le MCP masque son résumé.
+            conn.execute("UPDATE noeuds SET resume=?, a_refaire=0, maj_le=?, sensible=? WHERE id=?",
+                         (resume, _maintenant(), int(sensible), nid))
         stats["refaits"] += 1
 
     # 1. Sujets : à partir des résumés de conversations (casquette principale).
     for n in conn.execute("SELECT * FROM noeuds WHERE niveau='sujet' AND a_refaire=1").fetchall():
         rows = conn.execute(
-            """SELECT c.titre, c.cree_le, c.resume, c.sujet FROM conversations c
+            """SELECT c.titre, c.cree_le, c.resume, c.sujet, c.sensible FROM conversations c
                JOIN conv_casquettes cc ON cc.conv_id = c.id AND cc.principal = 1
                WHERE cc.casquette = ? AND c.statut = 'traite'
                ORDER BY c.cree_le DESC""", (n["casquette"],)).fetchall()
-        enfants = [f"{r['cree_le'] or ''} — {r['titre']}\n{r['resume']}"
-                   for r in rows if _slug(r["sujet"] or "") == n["id"].split(":", 2)[2]][:MAX_ENFANTS]
+        lus = [r for r in rows if _slug(r["sujet"] or "") == n["id"].split(":", 2)[2]][:MAX_ENFANTS]
         refaire(n["id"], llm_pour(n["casquette"]),
                 f"Résume le sujet « {n['titre']} » à partir de ces conversations (plus récentes d'abord) : "
-                "où tu en es, ce qui a été décidé, ce qui reste ouvert. 10 lignes max.", enfants)
+                "où tu en es, ce qui a été décidé, ce qui reste ouvert. 10 lignes max.",
+                [f"{r['cree_le'] or ''} — {r['titre']}\n{r['resume']}" for r in lus],
+                any(r["sensible"] for r in lus))
 
     # 2. Casquettes : à partir des sujets.
     for n in conn.execute("SELECT * FROM noeuds WHERE niveau='casquette' AND a_refaire=1").fetchall():
-        rows = conn.execute("SELECT titre, resume FROM noeuds WHERE niveau='sujet' AND casquette=? "
-                            "AND resume IS NOT NULL ORDER BY maj_le DESC", (n["casquette"],)).fetchall()
+        rows = conn.execute("SELECT titre, resume, sensible FROM noeuds WHERE niveau='sujet' AND casquette=? "
+                            "AND resume IS NOT NULL ORDER BY maj_le DESC", (n["casquette"],)).fetchall()[:MAX_ENFANTS]
         desc = cfg.casquettes[n["casquette"]].description if n["casquette"] in cfg.casquettes else ""
         refaire(n["id"], llm_pour(n["casquette"]),
                 f"Fais le profil de la casquette « {n['casquette']} » ({desc}) à partir de ses sujets : "
                 "situation actuelle, sujets en cours, tendances. 15 lignes max.",
-                [f"## {r['titre']}\n{r['resume']}" for r in rows][:MAX_ENFANTS])
+                [f"## {r['titre']}\n{r['resume']}" for r in rows], any(r["sensible"] for r in rows))
 
     # 3. Racines. « racine » ne voit jamais les casquettes privées (elle part à l'API).
-    def profils(inclure_privees: bool) -> list[str]:
-        rows = conn.execute("SELECT casquette, resume FROM noeuds WHERE niveau='casquette' "
+    def profils(inclure_privees: bool) -> list:
+        rows = conn.execute("SELECT casquette, resume, sensible FROM noeuds WHERE niveau='casquette' "
                             "AND resume IS NOT NULL").fetchall()
-        return [f"## {r['casquette']}\n{r['resume']}" for r in rows
-                if inclure_privees or r["casquette"] not in cfg.privees]
+        return [r for r in rows if inclure_privees or r["casquette"] not in cfg.privees]
+
+    def textes(rows) -> list[str]:
+        return [f"## {r['casquette']}\n{r['resume']}" for r in rows]
 
     racines = {r["id"] for r in conn.execute("SELECT id FROM noeuds WHERE niveau='racine' AND a_refaire=1")}
     if "racine" in racines:
+        p = profils(False)
         refaire("racine", api, "Fais une vue d'ensemble très courte (8 lignes max) de la vie de "
-                "l'utilisateur à partir de ces profils.", profils(False))
+                "l'utilisateur à partir de ces profils.", textes(p), any(r["sensible"] for r in p))
     if "racine:privee" in racines:
         refaire("racine:privee", local, "Fais une vue transverse (12 lignes max) à partir de ces profils : "
                 "ce qui se passe dans chaque domaine et surtout les liens entre domaines "
-                "(ex. travail et humeur, sommeil et stress).", profils(True))
+                "(ex. travail et humeur, sommeil et stress).", textes(profils(True)), True)
     return stats
 
 
 def traiter_tout(conn: sqlite3.Connection, cfg: Config, api: LLM, local: LLM,
-                 limite: int | None = None, progression=None) -> dict[str, int]:
+                 limite: int | None = None, progression=None, tout: bool = False) -> dict[str, int]:
+    if tout:  # tout reclasser (après un changement de casquettes ou de modèle)
+        with conn:
+            conn.execute("UPDATE conversations SET statut = 'nouveau' WHERE statut = 'traite'")
     ids = [r["id"] for r in conn.execute(
         "SELECT id FROM conversations WHERE statut IN ('nouveau', 'en_attente_local', 'erreur') ORDER BY cree_le")]
     if limite:

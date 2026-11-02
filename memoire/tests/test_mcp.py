@@ -63,3 +63,18 @@ def test_noter(memoire):
     assert "Noté" in r
     row = memoire.execute("SELECT source, statut FROM conversations WHERE titre = 'Choix de Mistral'").fetchone()
     assert tuple(row) == ("mcp", "nouveau")
+
+
+def test_branche_sensible_masquee(monkeypatch):
+    """Mode tout local : la conversation sensible est rangée en santé physique ; le MCP masque la branche."""
+    conn = db.connecter(":memory:")
+    cfg = config.charger()
+    for d in (CHATGPT, CLAUDE):
+        importers.enregistrer(conn, importers.lire_donnees(d))
+    loc = Faux("local", True, "sante_physique")
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    monkeypatch.setattr(mcp_serveur, "conn", conn)
+    monkeypatch.setattr(mcp_serveur, "PRIVE_AUTORISE", False)
+    p = appeler("profil", casquette="sante_physique")
+    assert "masqué" in p and "synthèse" not in p
+    assert "masqué" in appeler("vue_ensemble")

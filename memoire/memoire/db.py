@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS noeuds (
     titre      TEXT,
     resume     TEXT,
     a_refaire  INTEGER NOT NULL DEFAULT 1,
-    maj_le     TEXT
+    maj_le     TEXT,
+    sensible   INTEGER NOT NULL DEFAULT 0      -- la branche contient du sensible
 );
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     contenu, conv_id UNINDEXED, idx UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
@@ -68,6 +69,11 @@ def connecter(path: str) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
+    # Migration des bases créées avant l'ajout de noeuds.sensible
+    if "sensible" not in {r["name"] for r in conn.execute("PRAGMA table_info(noeuds)")}:
+        conn.execute("ALTER TABLE noeuds ADD COLUMN sensible INTEGER NOT NULL DEFAULT 0")
+        conn.execute("UPDATE noeuds SET a_refaire = 1")
+        conn.commit()
     return conn
 
 
