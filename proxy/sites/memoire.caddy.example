@@ -1,0 +1,22 @@
+# --- Mémoire perso (agent multi-casquettes, voir memoire/README.md) ---
+# Activé par : make memoire-proxy (copie ce fichier en sites/memoire.caddy)
+# Variables dans proxy/.env : MEMOIRE_HOST, MEMOIRE_AUTH_USER, MEMOIRE_AUTH_HASH
+#   (hash : docker exec caddy caddy hash-password)
+{$MEMOIRE_HOST} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Robots-Tag "noindex, nofollow"
+		Referrer-Policy "no-referrer"
+	}
+	log {
+		output discard
+	}
+	basic_auth {
+		{$MEMOIRE_AUTH_USER} {$MEMOIRE_AUTH_HASH}
+	}
+	request_body {
+		max_size 1GB
+	}
+	reverse_proxy memoire:8770
+}

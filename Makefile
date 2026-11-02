@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -121,6 +121,27 @@ health-takeout:   ## importe l'historique Google Fit d'un export Takeout : make 
 
 health-logs:
 	$(HEALTH_COMPOSE) logs -f --tail=100
+
+# --- Mémoire perso (agent multi-casquettes), voir memoire/README.md ---
+MEMOIRE_COMPOSE = cd memoire && docker compose
+
+memoire-deploy:   ## build + démarrage de l'agent mémoire
+	$(MEMOIRE_COMPOSE) up -d --build
+
+memoire-proxy:    ## active https://$$MEMOIRE_HOST dans Caddy (mot de passe obligatoire)
+	cp proxy/sites/memoire.caddy.example proxy/sites/memoire.caddy
+	$(MAKE) proxy
+
+memoire-import:   ## importe un export IA : make memoire-import FICHIER=~/conversations.zip [SOURCE=chatgpt]
+	@[ -n "$(FICHIER)" ] || { echo "Indique le fichier : make memoire-import FICHIER=~/export.zip"; exit 1; }
+	docker cp "$(abspath $(patsubst ~%,$(HOME)%,$(FICHIER)))" memoire:/tmp/import$(suffix $(FICHIER))
+	docker exec memoire python -m memoire importer /tmp/import$(suffix $(FICHIER)) $(if $(SOURCE),--source $(SOURCE))
+
+memoire-traiter:  ## classe et résume les conversations importées, puis refait l'arbre
+	docker exec memoire python -m memoire traiter
+
+memoire-logs:
+	cd memoire && docker compose logs -f --tail=100
 
 # --- Rapports Clearmind (site privé), voir README ---
 RAPPORTS_HOST ?= rapports.touplitoui.me
