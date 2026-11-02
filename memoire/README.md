@@ -38,7 +38,7 @@ Pour répondre, l'agent lit la racine, puis les profils des casquettes concerné
 | Service | Où | Fichier |
 |---|---|---|
 | ChatGPT | Paramètres → Contrôle des données → Exporter | zip avec `conversations.json` |
-| Claude | Paramètres → Confidentialité → Exporter les données | zip avec `conversations.json` |
+| Claude | Paramètres → Confidentialité → Exporter les données. Le mail donne un `manifest-….json` qui liste un zip par catégorie : télécharge `conversations`, `memories` et `projects` (ouvre chaque lien dans le navigateur connecté à claude.ai, il ne marche qu'une fois) | `conversations-000.zip`, `memories-000.zip`, `projects-000.zip` (importe-les un par un) |
 | Gemini | [takeout.google.com](https://takeout.google.com) → « Mon activité » → **Applications Gemini**, format **JSON** | zip avec `MyActivity.json` |
 | Mistral | Le Chat → Paramètres → exporter | json (format générique, à ajuster sur un vrai export) |
 

@@ -165,3 +165,27 @@ def test_api_injoignable_reste_nouveau(conn, cfg):
     stats = pipeline.traiter_tout(conn, cfg, api, local)
     assert stats["api_injoignable"] == 3
     assert conn.execute("SELECT statut FROM conversations WHERE id='chatgpt:g1'").fetchone()[0] == "nouveau"
+
+
+def test_export_claude_multi_zips(tmp_path, conn):
+    """Nouvel export claude.ai : un zip par catégorie (conversations, memories, projects)."""
+    memoires = {"account_uuid": "a", "memory_files": [
+        {"path": "/memories/travail.md", "content": "Nico développe clear-soken.", "updated_at": "2026-11-01T10:00:00Z"},
+        {"path": "/memories/vide.md", "content": "  ", "updated_at": "2026-11-01T10:00:00Z"}]}
+    projet = {"uuid": "p1", "name": "Clear Soken", "description": "Appli PWA", "prompt_template": "Réponds en français",
+              "is_private": True, "created_at": "2026-10-01T10:00:00Z", "updated_at": "2026-10-02T10:00:00Z", "docs": []}
+    vide = {"uuid": "p2", "name": "Vide", "description": "", "prompt_template": "", "docs": []}
+    fichiers = {"conversations-000.zip": {"conversations.json": CLAUDE},
+                "memories-000.zip": {"memories/x.json": memoires},
+                "projects-000.zip": {"projects/p1.json": projet, "projects/p2.json": vide}}
+    convs = []
+    for nom, contenu in fichiers.items():
+        with zipfile.ZipFile(tmp_path / nom, "w") as z:
+            for n, d in contenu.items():
+                z.writestr(n, json.dumps(d))
+        convs += importers.lire_fichier(tmp_path / nom)
+    ids = {c.id for c in convs}
+    assert ids == {"claude:k1", "claude_memoire:/memories/travail.md", "claude_projet:p1"}
+    p = next(c for c in convs if c.id == "claude_projet:p1")
+    assert p.titre == "Projet Claude : Clear Soken" and "Réponds en français" in p.messages[0].contenu
+    assert importers.enregistrer(conn, convs)["nouvelles"] == 3
