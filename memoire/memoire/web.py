@@ -4,19 +4,29 @@ from __future__ import annotations
 
 import tempfile
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from . import agent, config, db, importers, llm, pipeline
+from . import agent, config, db, importers, llm, mcp_serveur, pipeline
 
 cfg = config.charger()
 conn = db.connecter(cfg.db_path)
 api_llm, local_llm = llm.construire(cfg)
 verrou = threading.Lock()  # un seul traitement à la fois (SQLite + petit serveur)
-app = FastAPI(title="Mémoire", docs_url=None, redoc_url=None)
+mcp_app = mcp_serveur.app_http()
+
+
+@asynccontextmanager
+async def duree_de_vie(_app):
+    async with mcp_serveur.serveur.session_manager.run():
+        yield
+
+
+app = FastAPI(title="Mémoire", docs_url=None, redoc_url=None, lifespan=duree_de_vie)
 
 
 class Question(BaseModel):
@@ -116,3 +126,7 @@ etat(); arbre();
 @app.get("/", response_class=HTMLResponse)
 def page():
     return PAGE
+
+
+# Serveur MCP sur /mcp (monté en dernier : les routes ci-dessus restent prioritaires).
+app.mount("/", mcp_app)
