@@ -17,11 +17,11 @@ def _normaliser(s: str) -> str:
 
 
 def score_casquettes(texte: str, cfg: Config) -> dict[str, int]:
-    """Nombre de mots-clés de chaque casquette présents dans le texte."""
+    """Nombre de mots-clés de chaque casquette présents dans le texte (pluriels en -s/-x compris)."""
     t = _normaliser(texte)
     scores = {}
     for nom, c in cfg.casquettes.items():
-        n = sum(1 for m in c.mots_cles if re.search(rf"\b{re.escape(_normaliser(m))}\b", t))
+        n = sum(1 for m in c.mots_cles if re.search(rf"\b{re.escape(_normaliser(m))}(?:s|x)?\b", t))
         if n:
             scores[nom] = n
     return scores

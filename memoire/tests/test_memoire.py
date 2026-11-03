@@ -294,3 +294,9 @@ def test_reclasser(conn, cfg, capsys, monkeypatch, tmp_path):
     assert conn.execute("SELECT a_refaire FROM noeuds WHERE id='casquette:perso'").fetchone()[0] == 1
     with pytest.raises(ValueError):
         pipeline.reclasser(conn, cfg, "gemini:2026-09-01", "nimporte")
+
+
+def test_mots_cles_au_pluriel(cfg):
+    from memoire.sensible import score_casquettes
+    assert "pro" in score_casquettes("Sur quels projets je travaille ?", cfg)
+    assert "sante_mentale" in score_casquettes("mes angoisses du soir", cfg)
