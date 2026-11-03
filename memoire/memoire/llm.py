@@ -28,7 +28,8 @@ class LLM(Protocol):
     local: bool
     max_chars: int  # taille de contexte qu'on s'autorise à envoyer
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str: ...
+    # json_mode : False, True (JSON libre) ou un schéma JSON (respecté par Ollama, indicatif ailleurs)
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str: ...
 
 
 class Mistral:
@@ -37,7 +38,7 @@ class Mistral:
     def __init__(self, key: str, model: str):
         self.key, self.model = key, model
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str:
         corps = {"model": self.model, "temperature": 0.2,
                  "messages": [{"role": "system", "content": system},
                               {"role": "user", "content": prompt}]}
@@ -58,7 +59,7 @@ class Anthropic:
     def __init__(self, key: str, model: str):
         self.key, self.model = key, model
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str:
         if json_mode:
             system += "\nRéponds uniquement avec un objet JSON valide, sans texte autour."
         corps = {"model": self.model, "max_tokens": 2048, "system": system,
@@ -85,13 +86,14 @@ class Ollama:
         self.max_chars, self.num_ctx = max_chars, num_ctx
         self._echec_a: float | None = None
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str:
         corps = {"model": self.model, "stream": False,
                  "options": {"temperature": 0.2, "num_ctx": self.num_ctx},
                  "messages": [{"role": "system", "content": system},
                               {"role": "user", "content": prompt}]}
         if json_mode:
-            corps["format"] = "json"
+            # Un schéma impose la forme de la réponse (ex. une casquette parmi une liste fermée).
+            corps["format"] = json_mode if isinstance(json_mode, dict) else "json"
         if self._echec_a is not None and time.monotonic() - self._echec_a < self.PAUSE:
             raise Indisponible(f"Ollama injoignable ({self.url}), nouvel essai dans moins de {self.PAUSE} s")
         try:

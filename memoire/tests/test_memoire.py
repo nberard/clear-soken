@@ -261,3 +261,36 @@ def test_migration_noeuds_sensible(tmp_path):
     c = db.connecter(str(p))
     r = c.execute("SELECT sensible, a_refaire FROM noeuds WHERE id='racine'").fetchone()
     assert tuple(r) == (0, 1)
+
+
+def test_schema_et_exemples_dans_la_consigne(conn, cfg):
+    _tout_importer(conn)
+    loc = Faux("local", True, "pro")
+    vus = []
+    orig = loc.completer
+    loc.completer = lambda s, p, json_mode=False: (vus.append(json_mode), orig(s, p, json_mode))[1]
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    schema = next(j for j in vus if isinstance(j, dict))
+    assert set(schema["properties"]["casquette"]["enum"]) == set(cfg.casquettes)
+    assert any("Résilier mon abonnement Free" in p for p in loc.recu)
+
+
+def test_casquette_hors_liste_repli_mots_cles(conn, cfg):
+    _tout_importer(conn)
+    loc = Faux("local", True, "inexistante")
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    # « Comment configurer Caddy sur mon serveur docker » : mots-clés pro
+    cc = conn.execute("SELECT casquette FROM conv_casquettes WHERE conv_id='chatgpt:g1' AND principal=1").fetchone()
+    assert cc[0] == "pro"
+
+
+def test_reclasser(conn, cfg, capsys, monkeypatch, tmp_path):
+    _tout_importer(conn)
+    loc = Faux("local", True, "sante_physique")
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    pipeline.reclasser(conn, cfg, "gemini:2026-09-01", "perso")
+    cc = {r[0]: r[1] for r in conn.execute("SELECT casquette, principal FROM conv_casquettes WHERE conv_id='gemini:2026-09-01'")}
+    assert cc == {"perso": 1}
+    assert conn.execute("SELECT a_refaire FROM noeuds WHERE id='casquette:perso'").fetchone()[0] == 1
+    with pytest.raises(ValueError):
+        pipeline.reclasser(conn, cfg, "gemini:2026-09-01", "nimporte")

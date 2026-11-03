@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from .config import Config
 from .db import texte_conversation
 from .llm import LLM, Indisponible, extraire_json
-from .sensible import est_sensible
+from .sensible import est_sensible, score_casquettes
 
 SYSTEME = ("Tu organises la mémoire personnelle de l'utilisateur à partir de ses conversations "
            "avec des assistants IA. Tu écris en français, de façon factuelle et concise, "
@@ -43,7 +43,12 @@ def _tronquer(texte: str, max_chars: int) -> str:
 
 
 def _prompt_conversation(cfg: Config, titre: str, texte: str) -> str:
-    liste = "\n".join(f"- {n} : {c.description}" for n, c in cfg.casquettes.items())
+    lignes = []
+    for n, c in cfg.casquettes.items():
+        lignes.append(f"- {n} : {c.description}")
+        if c.exemples:
+            lignes.append(f"    exemples : {' ; '.join(c.exemples)}")
+    liste = "\n".join(lignes)
     return f"""Casquettes possibles :
 {liste}
 
@@ -52,15 +57,25 @@ Conversation « {titre} » :
 {texte}
 >>>
 
+Classe cette conversation selon son SUJET PRINCIPAL, en t'aidant des exemples.
+Une démarche administrative ou un achat va dans perso, même s'il touche la santé ou le travail ;
+une recherche d'emploi va dans pro ; un trouble du corps va dans sante_physique.
+
 Réponds avec un objet JSON :
-{{"casquette": "<la casquette principale>",
+{{"casquette": "<une des casquettes ci-dessus>",
   "autres_casquettes": ["<autres casquettes réellement concernées>"],
   "sujet": "<sujet court, 2 à 5 mots, réutilisable entre conversations>",
   "resume": "<5 lignes max : faits, décisions, ressentis, ce qui reste à faire>"}}
 
-Le résumé est en français uniquement et s'adresse à l'utilisateur à la 2e personne (« tu »).
-Choisis la casquette selon le sujet réel : une douleur ou un trouble du corps va dans
-la santé physique, même si la conversation est délicate."""
+Le résumé est en français uniquement et s'adresse à l'utilisateur à la 2e personne (« tu »)."""
+
+
+def _schema(cfg: Config) -> dict:
+    noms = list(cfg.casquettes)
+    return {"type": "object", "required": ["casquette", "autres_casquettes", "sujet", "resume"],
+            "properties": {"casquette": {"type": "string", "enum": noms},
+                           "autres_casquettes": {"type": "array", "items": {"type": "string", "enum": noms}},
+                           "sujet": {"type": "string"}, "resume": {"type": "string"}}}
 
 
 def traiter_conversation(conn: sqlite3.Connection, cfg: Config, conv_id: str,
@@ -72,7 +87,7 @@ def traiter_conversation(conn: sqlite3.Connection, cfg: Config, conv_id: str,
 
     try:
         brut = llm.completer(SYSTEME, _prompt_conversation(cfg, conv["titre"], _tronquer(texte, llm.max_chars)),
-                             json_mode=True)
+                             json_mode=_schema(cfg))
         res = extraire_json(brut)
     except Indisponible as e:
         statut = "en_attente_local" if llm.local else "nouveau"  # l'API sera réessayée au prochain passage
@@ -85,7 +100,11 @@ def traiter_conversation(conn: sqlite3.Connection, cfg: Config, conv_id: str,
             conn.execute("UPDATE conversations SET statut='erreur', erreur=? WHERE id=?", (str(e)[:500], conv_id))
         return "erreur"
 
-    principale = res.get("casquette") if res.get("casquette") in cfg.casquettes else next(iter(cfg.casquettes))
+    principale = res.get("casquette")
+    if principale not in cfg.casquettes:  # réponse hors liste : la casquette aux mots-clés les plus présents
+        scores = score_casquettes(f"{conv['titre']}\n{texte}", cfg)
+        principale = max(scores, key=scores.get) if scores else ("perso" if "perso" in cfg.casquettes
+                                                                 else next(iter(cfg.casquettes)))
     autres = {c for c in res.get("autres_casquettes") or [] if c in cfg.casquettes} - {principale}
     # Une API qui découvre après coup une casquette privée : on marque sensible pour la suite.
     sensible = sensible or principale in cfg.privees or bool(autres & cfg.privees)
@@ -223,3 +242,23 @@ def traiter_tout(conn: sqlite3.Connection, cfg: Config, api: LLM, local: LLM,
     stats["noeuds_refaits"] = arbre["refaits"]
     stats["noeuds_en_attente_local"] = arbre["en_attente_local"]
     return stats
+
+
+def reclasser(conn: sqlite3.Connection, cfg: Config, conv_id: str, casquette: str) -> None:
+    """Corrige à la main la casquette principale d'une conversation et marque les branches à refaire."""
+    if casquette not in cfg.casquettes:
+        raise ValueError(f"Casquette inconnue : {casquette}. Disponibles : {', '.join(cfg.casquettes)}")
+    conv = conn.execute("SELECT sujet FROM conversations WHERE id = ?", (conv_id,)).fetchone()
+    if not conv:
+        raise ValueError(f"Conversation introuvable : {conv_id}")
+    with conn:
+        ancienne = conn.execute("SELECT casquette FROM conv_casquettes WHERE conv_id=? AND principal=1",
+                                (conv_id,)).fetchone()
+        conn.execute("DELETE FROM conv_casquettes WHERE conv_id=? AND casquette=?", (conv_id, casquette))
+        # L'ancienne casquette était une erreur : on la retire, on ne la garde pas en lien.
+        conn.execute("DELETE FROM conv_casquettes WHERE conv_id=? AND principal=1", (conv_id,))
+        conn.execute("INSERT INTO conv_casquettes VALUES (?, ?, 1)", (conv_id, casquette))
+        if conv["sujet"]:
+            if ancienne:
+                _marquer(conn, ancienne["casquette"], conv["sujet"])
+            _marquer(conn, casquette, conv["sujet"])

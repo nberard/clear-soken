@@ -15,6 +15,7 @@ class Casquette:
     description: str
     prive: bool = False
     mots_cles: list[str] = field(default_factory=list)
+    exemples: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -47,6 +48,7 @@ def charger_casquettes(path: str | Path) -> dict[str, Casquette]:
             description=v.get("description", nom),
             prive=bool(v.get("prive", False)),
             mots_cles=[m.lower() for m in v.get("mots_cles", [])],
+            exemples=list(v.get("exemples", [])),
         )
         for nom, v in brut.items()
     }

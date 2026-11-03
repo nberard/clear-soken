@@ -1,22 +1,27 @@
 # Les casquettes : une par domaine de ta vie.
-# prive = true  -> tout ce qui touche cette casquette est traité par le modèle LOCAL
-#                  (Ollama sur ton PC), jamais par une API externe.
+# prive = true  -> traitée uniquement par le modèle LOCAL et invisible par MCP.
 # mots_cles     -> servent à router tes questions et à repérer, AVANT tout envoi,
 #                  une conversation sensible (voir memoire/sensible.py).
+# exemples      -> titres de conversations typiques : ils guident le modèle pour
+#                  classer (très utile avec un petit modèle). Ajoute les tiens.
 
 [pro]
-description = "Travail, projets tech, carrière, recherche d'emploi, clients"
-mots_cles = ["travail", "boulot", "projet", "client", "code", "serveur", "déploiement", "réunion", "carrière", "entretien", "cv", "freelance", "rust", "python", "docker"]
+description = "Travail et carrière : code, projets tech, serveurs, outils, recherche d'emploi, candidatures, lettres de motivation, entretiens, formations professionnelles"
+mots_cles = ["travail", "boulot", "projet", "client", "code", "serveur", "déploiement", "réunion", "carrière", "entretien", "cv", "freelance", "rust", "python", "docker", "candidature", "esn"]
+exemples = ["Lettre de motivation pour un poste de développeur", "Script Python pour extraire un APK", "Déployer une API avec Docker", "Liste des ESN à Montpellier", "Préparation à un entretien technique"]
 
 [perso]
-description = "Vie personnelle, famille, amis, loisirs, logement, administratif, finances"
-mots_cles = ["famille", "ami", "amis", "vacances", "voyage", "appartement", "loyer", "impôts", "banque", "budget", "cadeau", "week-end", "film", "musique"]
+description = "Vie quotidienne : achats, logement, démarches administratives (résiliations, attestations, France Travail, CAF), famille, amis, loisirs, voyages, culture, animaux"
+mots_cles = ["famille", "ami", "amis", "vacances", "voyage", "appartement", "loyer", "impôts", "banque", "budget", "cadeau", "week-end", "film", "musique", "résiliation", "attestation", "bail"]
+exemples = ["Résilier mon abonnement Free", "Trouver des tongs", "Attestation d'hébergement", "Traitement contre les puces du chaton", "Choisir des écouteurs", "Analyse d'un film"]
 
 [sante_physique]
-description = "Sport, sommeil, alimentation, douleurs, rendez-vous médicaux (hors psy)"
+description = "Le corps : douleurs, digestion, sommeil, sport, alimentation, rendez-vous médicaux hors psychiatrie"
 mots_cles = ["sport", "sommeil", "dormir", "course", "nombre de pas", "poids", "régime", "douleur", "médecin", "kiné", "dentiste", "fatigue physique", "musculation"]
+exemples = ["Douleurs au ventre et constipation", "Itinéraire de course à pied", "Mal de dos depuis une semaine"]
 
 [sante_mentale]
-description = "Humeur, stress, anxiété, émotions, thérapie, traitement psy"
+description = "Le psychisme : humeur, anxiété, dépression, troubles (TDAH, autisme, bipolarité), psychiatrie et ses médicaments, addictions et sevrage, relations difficiles"
 prive = true
 mots_cles = ["anxiété", "angoisse", "stress", "déprime", "dépression", "psy", "psychiatre", "psychologue", "thérapie", "thérapeute", "humeur", "burn-out", "burnout", "panique", "crise", "suicide", "suicidaire", "antidépresseur", "anxiolytique", "hospitalisation", "tcc", "émotion", "pleurer", "solitude", "addiction", "sevrage"]
+exemples = ["Effets secondaires de la venlafaxine", "Arrêter le cannabis", "Diagnostic TDAH", "Je me sens très angoissé le soir"]
