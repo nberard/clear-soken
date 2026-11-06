@@ -48,10 +48,12 @@ def rechercher(conn: sqlite3.Connection, question: str, limite: int = 30) -> lis
 
 
 def router(conn: sqlite3.Connection, cfg: Config, question: str) -> list[str]:
-    scores = Counter(score_casquettes(question, cfg))
+    # Les mots-clés de la question priment ; les passages trouvés départagent seulement
+    # (sinon une casquette mal remplie attire toutes les questions).
+    scores = Counter({c: 3 * n for c, n in score_casquettes(question, cfg).items()})
     for r in rechercher(conn, question, 20):
         if r["casquette"]:
-            scores[r["casquette"]] += 0.5
+            scores[r["casquette"]] += 0.25
     if not scores:
         return list(cfg.casquettes)  # rien de clair : on regarde partout
     meilleur = max(scores.values())

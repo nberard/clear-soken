@@ -7,7 +7,7 @@
 
 [pro]
 description = "Travail et carrière : code, projets tech, serveurs, outils, recherche d'emploi, candidatures, lettres de motivation, entretiens, formations professionnelles"
-mots_cles = ["travail", "boulot", "projet", "client", "code", "serveur", "déploiement", "réunion", "carrière", "entretien", "cv", "freelance", "rust", "python", "docker", "candidature", "esn"]
+mots_cles = ["travail", "travaille", "travailler", "boulot", "projet", "client", "code", "serveur", "déploiement", "réunion", "carrière", "entretien", "cv", "freelance", "rust", "python", "docker", "candidature", "esn"]
 exemples = ["Lettre de motivation pour un poste de développeur", "Script Python pour extraire un APK", "Déployer une API avec Docker", "Liste des ESN à Montpellier", "Préparation à un entretien technique"]
 
 [perso]

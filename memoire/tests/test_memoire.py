@@ -300,3 +300,11 @@ def test_mots_cles_au_pluriel(cfg):
     from memoire.sensible import score_casquettes
     assert "pro" in score_casquettes("Sur quels projets je travaille ?", cfg)
     assert "sante_mentale" in score_casquettes("mes angoisses du soir", cfg)
+
+
+def test_routage_les_mots_cles_priment(conn, cfg):
+    """Une question sur les projets va vers pro, même si d'autres casquettes ont plus de passages."""
+    _tout_importer(conn)
+    loc = Faux("local", True, "sante_physique")  # tout est (mal) classé en santé physique
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    assert agent.router(conn, cfg, "Sur quels projets je travaille en ce moment ?")[0] == "pro"
