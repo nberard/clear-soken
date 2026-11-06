@@ -116,6 +116,12 @@ def traiter_conversation(conn: sqlite3.Connection, cfg: Config, conv_id: str,
         privee = next((a for a in autres if a in cfg.privees), None) or sorted(cfg.privees)[0]
         autres = (autres | {principale}) - {privee}
         principale = privee
+    # Une correction manuelle (« reclasser ») l'emporte toujours sur le modèle, sauf si elle
+    # mettait du sensible dans une casquette résumée par une API externe.
+    manuelle = conv["casquette_manuelle"]
+    if manuelle in cfg.casquettes and (not sensible or api.local or manuelle in cfg.privees):
+        autres -= {manuelle}  # le choix du modèle était faux : on ne le garde pas en lien
+        principale = manuelle
     sujet = (res.get("sujet") or "divers").strip()[:80]
 
     with conn:
@@ -258,6 +264,7 @@ def reclasser(conn: sqlite3.Connection, cfg: Config, conv_id: str, casquette: st
         # L'ancienne casquette était une erreur : on la retire, on ne la garde pas en lien.
         conn.execute("DELETE FROM conv_casquettes WHERE conv_id=? AND principal=1", (conv_id,))
         conn.execute("INSERT INTO conv_casquettes VALUES (?, ?, 1)", (conv_id, casquette))
+        conn.execute("UPDATE conversations SET casquette_manuelle = ? WHERE id = ?", (casquette, conv_id))
         if conv["sujet"]:
             if ancienne:
                 _marquer(conn, ancienne["casquette"], conv["sujet"])

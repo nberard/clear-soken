@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     sensible    INTEGER NOT NULL DEFAULT 0,
     sujet       TEXT,
     resume      TEXT,
+    casquette_manuelle TEXT,               -- fixée par « reclasser » : prioritaire sur le modèle
     erreur      TEXT
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -73,6 +74,9 @@ def connecter(path: str) -> sqlite3.Connection:
     if "sensible" not in {r["name"] for r in conn.execute("PRAGMA table_info(noeuds)")}:
         conn.execute("ALTER TABLE noeuds ADD COLUMN sensible INTEGER NOT NULL DEFAULT 0")
         conn.execute("UPDATE noeuds SET a_refaire = 1")
+        conn.commit()
+    if "casquette_manuelle" not in {r["name"] for r in conn.execute("PRAGMA table_info(conversations)")}:
+        conn.execute("ALTER TABLE conversations ADD COLUMN casquette_manuelle TEXT")
         conn.commit()
     return conn
 

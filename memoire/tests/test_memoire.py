@@ -156,7 +156,7 @@ def test_agent_route_et_protege(conn, cfg):
 def test_agent_local_eteint(conn, cfg):
     api, local = Faux("api", False), Faux("local", True, panne=True)
     r = agent.demander(conn, cfg, "mon anxiété", api, local)
-    assert "modèle local ne répond pas" in r.texte and not api.recu
+    assert "modèle local (Ollama) ne répond pas" in r.texte and not api.recu
 
 
 def test_api_injoignable_reste_nouveau(conn, cfg):
@@ -308,3 +308,31 @@ def test_routage_les_mots_cles_priment(conn, cfg):
     loc = Faux("local", True, "sante_physique")  # tout est (mal) classé en santé physique
     pipeline.traiter_tout(conn, cfg, loc, loc)
     assert agent.router(conn, cfg, "Sur quels projets je travaille en ce moment ?")[0] == "pro"
+
+
+def test_correction_manuelle_resiste_au_retraitement(conn, cfg):
+    _tout_importer(conn)
+    loc = Faux("local", True, "sante_physique")
+    pipeline.traiter_tout(conn, cfg, loc, loc)
+    pipeline.reclasser(conn, cfg, "chatgpt:g1", "pro")
+    pipeline.traiter_tout(conn, cfg, loc, loc, tout=True)  # le modèle redit « sante_physique »
+    cc = {r[0]: r[1] for r in conn.execute("SELECT casquette, principal FROM conv_casquettes WHERE conv_id='chatgpt:g1'")}
+    assert cc == {"pro": 1}
+
+
+def test_message_local_eteint_sans_casquette_privee(conn, cfg):
+    loc = Faux("local", True, panne=True)
+    r = agent.demander(conn, cfg, "mes projets", loc, loc, ["pro"])
+    assert r.texte.startswith("Le modèle local (Ollama) ne répond pas") and "()" not in r.texte
+
+
+def test_migration_casquette_manuelle(tmp_path):
+    import sqlite3
+    p = tmp_path / "v1.db"
+    old = sqlite3.connect(p)
+    old.execute("CREATE TABLE conversations (id TEXT PRIMARY KEY, source TEXT NOT NULL, titre TEXT, cree_le TEXT, "
+                "maj_le TEXT, empreinte TEXT, statut TEXT NOT NULL DEFAULT 'nouveau', sensible INTEGER NOT NULL DEFAULT 0, "
+                "sujet TEXT, resume TEXT, erreur TEXT)")
+    old.commit(); old.close()
+    c = db.connecter(str(p))
+    assert "casquette_manuelle" in {r["name"] for r in c.execute("PRAGMA table_info(conversations)")}
