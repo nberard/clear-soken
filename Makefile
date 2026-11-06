@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -188,6 +188,28 @@ portal-proxy:     ## active https://$$PORTAL_HOST (clone kraken-portal dans PORT
 
 portal-update:    ## récupère la dernière version du portal (aucun redémarrage nécessaire)
 	@d=$$(sed -n 's/^PORTAL_DIR=//p' proxy/.env); git -C "$$d" pull --ff-only
+
+# --- « Ça me fait penser à… » (carnet de références perso, ref/), voir README ---
+REF_COMPOSE = cd ref && docker compose
+
+ref-deploy:       ## construit et (re)démarre le carnet de références (quelques secondes)
+	@[ -f ref/.env ] || { cp ref/.env.example ref/.env && echo "-> ref/.env créé (ajoute ANTHROPIC_API_KEY pour le bouton Chercher)"; }
+	$(REF_COMPOSE) up -d --build
+	@docker image prune -f >/dev/null
+
+ref-proxy:        ## active https://$$REF_HOST (mot de passe REF_AUTH_USER / REF_AUTH_HASH dans proxy/.env)
+	@grep -Eq '^REF_AUTH_HASH=.?\$$2[aby]\$$' proxy/.env || { \
+	  echo "Ajoute REF_HOST, REF_AUTH_USER et REF_AUTH_HASH dans proxy/.env (voir proxy/.env.example)"; exit 1; }
+	cp proxy/sites/ref.caddy.example proxy/sites/ref.caddy
+	$(MAKE) proxy-check || { rm -f proxy/sites/ref.caddy; echo "-> config ref retirée, Caddy inchangé"; exit 1; }
+	$(MAKE) proxy
+
+ref-logs:
+	$(REF_COMPOSE) logs -f --tail=100
+
+ref-backup:       ## copie les références dans ref/backups/refs-AAAA-MM-JJ.json
+	@mkdir -p ref/backups
+	docker cp ref:/data/refs.json ref/backups/refs-$$(date +%F).json && echo "-> ref/backups/refs-$$(date +%F).json"
 
 # --- Secours : construire sur le PC et publier sur ghcr.io (d'habitude, GitHub Actions s'en charge) ---
 push:

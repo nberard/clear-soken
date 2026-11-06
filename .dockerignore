@@ -8,3 +8,4 @@ proxy
 !frontend/static/**/*.png
 mint-health/
 memoire/
+ref/

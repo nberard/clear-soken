@@ -1,0 +1,26 @@
+# --- « Ça me fait penser à… » (carnet de références perso) ---
+# Activé par : make ref-proxy (copie ce fichier en sites/ref.caddy)
+# Variables dans proxy/.env : REF_HOST, REF_AUTH_USER, REF_AUTH_HASH
+{$REF_HOST} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Robots-Tag "noindex, nofollow"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+	log {
+		output discard
+	}
+
+	# Tout le site (page et API) est derrière un mot de passe
+	basic_auth {
+		{$REF_AUTH_USER} {$REF_AUTH_HASH}
+	}
+
+	request_body {
+		max_size 1MB
+	}
+	reverse_proxy ref:8000
+}
