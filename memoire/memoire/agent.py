@@ -48,10 +48,12 @@ def rechercher(conn: sqlite3.Connection, question: str, limite: int = 30) -> lis
 
 
 def router(conn: sqlite3.Connection, cfg: Config, question: str) -> list[str]:
-    scores = Counter(score_casquettes(question, cfg))
+    # Les mots-clés de la question priment ; les passages trouvés départagent seulement
+    # (sinon une casquette mal remplie attire toutes les questions).
+    scores = Counter({c: 3 * n for c, n in score_casquettes(question, cfg).items()})
     for r in rechercher(conn, question, 20):
         if r["casquette"]:
-            scores[r["casquette"]] += 0.5
+            scores[r["casquette"]] += 0.25
     if not scores:
         return list(cfg.casquettes)  # rien de clair : on regarde partout
     meilleur = max(scores.values())
@@ -115,6 +117,8 @@ def demander(conn: sqlite3.Connection, cfg: Config, question: str, api: LLM, loc
     try:
         texte = llm.completer(SYSTEME, f"Mémoire :\n{contexte}\n\nQuestion : {question}")
     except Indisponible as e:
-        texte = (f"Cette question touche une casquette privée ({', '.join(c for c in casquettes if c in cfg.privees)}) "
-                 f"et le modèle local ne répond pas. Allume ton PC / le tunnel Ollama puis réessaie.\n({e})")
+        privees = [c for c in casquettes if c in cfg.privees]
+        motif = f"Cette question touche une casquette privée ({', '.join(privees)}) et le" if privees else "Le"
+        texte = (f"{motif} modèle local (Ollama) ne répond pas : vérifie que ton PC est allumé "
+                 f"et que le tunnel est ouvert, puis réessaie.\n({e})")
     return Reponse(texte.strip(), casquettes, llm.nom, sources)

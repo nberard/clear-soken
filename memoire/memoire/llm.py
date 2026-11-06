@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Protocol
 
 import httpx
@@ -17,12 +18,18 @@ class Indisponible(Exception):
     """Le backend ne répond pas (ex. PC éteint pour le modèle local)."""
 
 
+# Connexion courte : un hôte injoignable doit échouer vite, pas bloquer des minutes.
+DELAI_API = httpx.Timeout(120, connect=10)
+DELAI_LOCAL = httpx.Timeout(600, connect=5)
+
+
 class LLM(Protocol):
     nom: str
     local: bool
     max_chars: int  # taille de contexte qu'on s'autorise à envoyer
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str: ...
+    # json_mode : False, True (JSON libre) ou un schéma JSON (respecté par Ollama, indicatif ailleurs)
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str: ...
 
 
 class Mistral:
@@ -31,14 +38,14 @@ class Mistral:
     def __init__(self, key: str, model: str):
         self.key, self.model = key, model
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str:
         corps = {"model": self.model, "temperature": 0.2,
                  "messages": [{"role": "system", "content": system},
                               {"role": "user", "content": prompt}]}
         if json_mode:
             corps["response_format"] = {"type": "json_object"}
         try:
-            r = httpx.post("https://api.mistral.ai/v1/chat/completions", json=corps, timeout=120,
+            r = httpx.post("https://api.mistral.ai/v1/chat/completions", json=corps, timeout=DELAI_API,
                            headers={"Authorization": f"Bearer {self.key}"})
             r.raise_for_status()
         except httpx.TransportError as e:
@@ -52,13 +59,13 @@ class Anthropic:
     def __init__(self, key: str, model: str):
         self.key, self.model = key, model
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str:
         if json_mode:
             system += "\nRéponds uniquement avec un objet JSON valide, sans texte autour."
         corps = {"model": self.model, "max_tokens": 2048, "system": system,
                  "messages": [{"role": "user", "content": prompt}]}
         try:
-            r = httpx.post("https://api.anthropic.com/v1/messages", json=corps, timeout=120,
+            r = httpx.post("https://api.anthropic.com/v1/messages", json=corps, timeout=DELAI_API,
                            headers={"x-api-key": self.key, "anthropic-version": "2023-06-01"})
             r.raise_for_status()
         except httpx.TransportError as e:
@@ -68,32 +75,56 @@ class Anthropic:
 
 class Ollama:
     # Modèle plus petit : on lui envoie moins de texte.
-    nom, local, max_chars = "ollama", True, 16_000
+    nom, local = "ollama", True
 
-    def __init__(self, url: str, model: str):
+    PAUSE = 60  # après un échec, on ne réessaie pas avant 60 s
+
+    def __init__(self, url: str, model: str, max_chars: int = 10_000, num_ctx: int = 4096):
+        # num_ctx = taille du contexte en tokens (plus grand = plus de RAM).
+        # max_chars doit tenir dedans : ~3 caractères par token en français, plus la réponse.
         self.url, self.model = url.rstrip("/"), model
+        self.max_chars, self.num_ctx = max_chars, num_ctx
+        self._echec_a: float | None = None
 
-    def completer(self, system: str, prompt: str, json_mode: bool = False) -> str:
-        corps = {"model": self.model, "stream": False, "options": {"temperature": 0.2},
+    def completer(self, system: str, prompt: str, json_mode: bool | dict = False) -> str:
+        corps = {"model": self.model, "stream": False,
+                 "options": {"temperature": 0.2, "num_ctx": self.num_ctx},
                  "messages": [{"role": "system", "content": system},
                               {"role": "user", "content": prompt}]}
         if json_mode:
-            corps["format"] = "json"
+            # Un schéma impose la forme de la réponse (ex. une casquette parmi une liste fermée).
+            corps["format"] = json_mode if isinstance(json_mode, dict) else "json"
+        if self._echec_a is not None and time.monotonic() - self._echec_a < self.PAUSE:
+            raise Indisponible(f"Ollama injoignable ({self.url}), nouvel essai dans moins de {self.PAUSE} s")
         try:
-            r = httpx.post(f"{self.url}/api/chat", json=corps, timeout=600)
+            r = httpx.post(f"{self.url}/api/chat", json=corps, timeout=DELAI_LOCAL)
             r.raise_for_status()
         except httpx.TransportError as e:
+            self._echec_a = time.monotonic()
             raise Indisponible(f"Ollama injoignable ({self.url}) : {e}") from e
         return r.json()["message"]["content"]
 
 
-def construire(cfg: Config) -> tuple[LLM, LLM]:
-    """Renvoie (api, local)."""
+class CleManquante(Exception):
+    """Clé d'API absente : erreur de configuration, pas une panne réseau."""
+
+
+def construire(cfg: Config, verifier: bool = True) -> tuple[LLM, LLM]:
+    """Renvoie (api, local). Lève CleManquante si la clé de l'API choisie est vide.
+    Avec MEMOIRE_API=ollama, tout passe par le modèle local : aucune clé, rien ne sort."""
+    local = Ollama(cfg.ollama_url, cfg.ollama_model, cfg.ollama_max_chars, cfg.ollama_num_ctx)
+    if cfg.api in ("ollama", "local"):
+        return local, local
+    cle, var = ((cfg.anthropic_key, "ANTHROPIC_API_KEY") if cfg.api == "anthropic"
+                else (cfg.mistral_key, "MISTRAL_API_KEY"))
+    if verifier and not cle.strip():
+        raise CleManquante(f"{var} est vide : renseigne-la dans memoire/.env puis relance "
+                           "« make memoire-deploy » pour que le conteneur la prenne en compte.")
     if cfg.api == "anthropic":
         api: LLM = Anthropic(cfg.anthropic_key, cfg.anthropic_model)
     else:
         api = Mistral(cfg.mistral_key, cfg.mistral_model)
-    return api, Ollama(cfg.ollama_url, cfg.ollama_model)
+    return api, local
 
 
 def extraire_json(texte: str) -> dict:

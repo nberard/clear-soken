@@ -15,7 +15,11 @@ from . import agent, config, db, importers, llm, mcp_serveur, pipeline
 
 cfg = config.charger()
 conn = db.connecter(cfg.db_path)
-api_llm, local_llm = llm.construire(cfg)
+try:
+    llm.construire(cfg)
+except llm.CleManquante as e:  # l'interface reste utilisable (arbre, import), seules les questions échoueront
+    print(f"Attention : {e}", flush=True)
+api_llm, local_llm = llm.construire(cfg, verifier=False)
 verrou = threading.Lock()  # un seul traitement à la fois (SQLite + petit serveur)
 mcp_app = mcp_serveur.app_http()
 

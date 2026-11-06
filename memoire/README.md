@@ -24,7 +24,7 @@ Pour répondre, l'agent lit la racine, puis les profils des casquettes concerné
 
 | | Traité par |
 |---|---|
-| pro, perso, santé physique | API (Mistral par défaut, hébergé en France, ou Claude) |
+| pro, perso, santé physique | au choix (`MEMOIRE_API`) : `ollama` (tout en local, par défaut), `mistral` ou `anthropic` |
 | santé mentale (`prive = true`) | **modèle local** (Ollama sur ton PC), jamais l'API |
 
 - **Avant tout envoi**, chaque conversation est passée au crible des mots-clés des casquettes privées (`casquettes.toml`). Si elle en contient, elle est traitée **uniquement** en local et rangée sous la casquette privée ; sa casquette d'origine reste un lien croisé.
@@ -62,7 +62,7 @@ Le conteneur est limité à 300 Mo de RAM : il ne fait que stocker et appeler de
 ```bash
 # Sur ton PC (avec une carte graphique de préférence)
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen2.5:7b
+ollama pull qwen2.5:3b   # ou qwen2.5:7b avec 16 Go de RAM / une carte graphique
 
 # Tunnel : le serveur joint l'Ollama de ton PC tant que cette commande tourne.
 # Sur le serveur, une fois : GatewayPorts clientspecified dans /etc/ssh/sshd_config
