@@ -47,6 +47,14 @@
 	</span>
 </a>
 
+<a class="card tile" href="/seances/">
+	<span class="big" aria-hidden="true">🗒️</span>
+	<span>
+		<strong>Mes séances</strong>
+		<span class="muted">Préparer ma prochaine séance, garder ce qui m’aide</span>
+	</span>
+</a>
+
 <a class="card tile" href="/echelons/">
 	<span class="big" aria-hidden="true">🪜</span>
 	<span>

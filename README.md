@@ -12,6 +12,7 @@ Le patient scanne un QR code affiché dans le service : l'appli s'ouvre et s'ins
 | **Humeur** | Météo intérieure en un geste + note libre, frise de la semaine |
 | **Respirer** | Cohérence cardiaque guidée (2 ou 5 min), exercice d'ancrage 5-4-3-2-1 |
 | **Ma voix** | Mémos vocaux en un geste : enregistrer, réécouter, renommer, partager. Raccourci « Enregistrer » sur l'icône de l'appli (appui long) |
+| **Mes séances** | Préparer la prochaine séance (sujets cochés au fil de la semaine), carnet des séances : notes, « à essayer », ressenti, thèmes, recherche. Import des notes Google Keep (via clearmind-tools `keep.py`). Sauvegarde **chiffrée** par mot de passe |
 | **Échelons** | Petits pas en 4 paliers (soin de soi → autres → lien → sortie), personnalisables |
 | **Ressources** | Annuaire : écoute, GEM, Clubhouse, CMP, proches… |
 | **Trouver un centre** | Addictions (alcool, cannabis, cocaïne, opioïdes, tabac, jeux…) et besoin (suivi, sevrage à l'hôpital, séjour/post-cure, groupe ou association, réduction des risques) : le lieu le plus adapté autour de moi (GPS) ou de mon futur chez-moi (adresse, ville, ou un lieu de « Ma sortie »). Appeler, itinéraire, associations d'entraide (AA, NA, Vie Libre…), lignes d'écoute |
@@ -24,6 +25,8 @@ L'appli fonctionne hors ligne grâce au service worker.
 **Aucune donnée de santé n'est envoyée au serveur.** L'humeur et les échelons sont stockés uniquement sur le téléphone (`localStorage`), les mémos vocaux aussi (IndexedDB). Ils ne quittent le téléphone que si le patient choisit de les partager. Le serveur ne sert que l'appli et l'annuaire public, et Caddy ne journalise pas les adresses IP.
 
 « Trouver un centre » suit la même règle : l'annuaire des centres est téléchargé en entier et trié **sur le téléphone**. Ni la position, ni le motif de la recherche ne sont envoyés au serveur. Seule une adresse tapée à la main part vers le géocodeur public de l'IGN (`data.geopf.fr`), sans référent ni motif.
+
+Les notes de **Mes séances** restent aussi sur le téléphone. La sauvegarde exportée est chiffrée (AES-GCM, clé dérivée du mot de passe par PBKDF2-SHA256, 310 000 itérations) : illisible sans le mot de passe, qui ne quitte jamais le téléphone et ne peut pas être retrouvé. Ce même chiffrement servira à une synchronisation entre appareils (V2), où le serveur ne stockerait que des données illisibles ; elle reste soumise aux conditions ci-dessous, y compris si les données sont chiffrées (point à faire valider).
 
 Conséquence : la V1 n'a pas besoin d'un hébergeur certifié **HDS**. Dès que des données patient seront stockées côté serveur (comptes, communauté, partage avec les soignants), il faudra :
 - un hébergement HDS (OVH propose des offres dédiées) ;
