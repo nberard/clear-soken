@@ -10,7 +10,11 @@ import { version } from '$app/env';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 const CACHE = `clearsoken-${version}`;
-const ASSETS = [...immutable, ...assets, ...prerendered].map((f) => '/' + f.path.replace(/^\//, ''));
+// L'espace admin (stats Instagram, comptes « admin ») n'est jamais mis en cache sur le téléphone
+const estAdmin = (path: string) => path.startsWith('/admin') || path.startsWith('/api/admin');
+const ASSETS = [...immutable, ...assets, ...prerendered]
+	.map((f) => '/' + f.path.replace(/^\//, ''))
+	.filter((p) => !estAdmin(p));
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
@@ -35,6 +39,7 @@ sw.addEventListener('fetch', (event) => {
 	if (req.method !== 'GET') return;
 	const url = new URL(req.url);
 	if (url.origin !== sw.location.origin) return;
+	if (estAdmin(url.pathname)) return; // réseau seulement
 
 	// Fichiers de l'appli : cache d'abord
 	if (ASSETS.includes(url.pathname)) {

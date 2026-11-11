@@ -12,6 +12,7 @@ services:
     volumes:
       - ./backend/data:/app/data:ro   # l'annuaire se modifie sans rebuild (puis : make restart)
       - comptes:/app/comptes          # comptes des potes (make compte), jamais de patients
+      - ./secrets:/app/secrets:ro     # espace admin : clé BigQuery en lecture seule (make admin-cle)
     ports:
       - "127.0.0.1:8090:8080"         # accès local (debug) : curl localhost:8090 ; 8080 est pris par Jenkins
     networks:
