@@ -419,7 +419,7 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["lignes"][0]["pays"], "FR");
-        assert_eq!(app.clone().oneshot(stats("../comptes", &cookie)).await.unwrap().status(), 404);
+        assert_eq!(app.clone().oneshot(stats("..%2Fcomptes", &cookie)).await.unwrap().status(), 404);
         assert_eq!(app.clone().oneshot(stats("inconnue", &cookie)).await.unwrap().status(), 404);
         // Fichier absent : erreur lisible, pas de plantage
         assert_eq!(app.clone().oneshot(stats("comptes", &cookie)).await.unwrap().status(), 502);
