@@ -185,8 +185,8 @@ pub fn cli(path: &Path, args: &[String]) -> Result<String, String> {
             let mut mdp = String::new();
             std::io::stdin().lock().read_line(&mut mdp).map_err(|e| e.to_string())?;
             let mdp = mdp.trim_end_matches(['\r', '\n']);
-            if mdp.chars().count() < 8 {
-                return Err("mot de passe trop court (8 caractères minimum)".into());
+            if mdp.chars().count() < 7 {
+                return Err("mot de passe trop court (7 caractères minimum)".into());
             }
             let hash = hacher(mdp);
             let roles = roles(args.get(2));
