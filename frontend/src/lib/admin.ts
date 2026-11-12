@@ -35,6 +35,8 @@ export type Publication = {
 	likes_au_dela_des_vues?: number | null;
 	/** D'où vient l'estimation des faux likes */
 	estimation?: 'likers analysés' | 'likes au-delà des vues' | null;
+	/** Publiée pendant une période d'achat de likes / d'abonnés (PERIODES_ACHAT côté clearmind-tools) */
+	periode_achat?: boolean | null;
 };
 
 export type Compte = {
@@ -94,11 +96,13 @@ export function top(
 	critere: Critere,
 	n: number,
 	reelsSeulement = true,
-	achetesSeulement = false
+	achetesSeulement = false,
+	sansPeriodesAchat = false
 ): Publication[] {
 	return pubs
 		.filter((p) => !reelsSeulement || estReel(p))
 		.filter((p) => !achetesSeulement || p.likes_superieurs_aux_vues)
+		.filter((p) => !sansPeriodesAchat || !p.periode_achat)
 		.toSorted((a, b) => {
 			const va = a[critere];
 			const vb = b[critere];
