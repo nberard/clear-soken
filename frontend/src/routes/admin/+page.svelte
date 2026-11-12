@@ -43,10 +43,11 @@
 	let critere: Critere = $state('likes_authentiques_estimes');
 	let combien = $state(10);
 	let reelsSeulement = $state(true);
+	let achetesSeulement = $state(false);
 	let filtre: FiltreComptes = $state({ niveau: 'probablement faux', population: 'tous', recherche: '' });
 	let affiches = $state(50);
 
-	const classement = $derived(top(publications, critere, combien, reelsSeulement));
+	const classement = $derived(top(publications, critere, combien, reelsSeulement, achetesSeulement));
 	const critereActif = $derived(CRITERES.find((c) => c.id === critere)!);
 	const comptesFiltres = $derived(filtrerComptes(comptes, filtre));
 	const niveaux = $derived(compterNiveaux(comptes));
@@ -198,6 +199,7 @@
 						</select>
 					</label>
 					<label class="case"><input type="checkbox" bind:checked={reelsSeulement} /> Réels seulement</label>
+					<label class="case"><input type="checkbox" bind:checked={achetesSeulement} /> Likes achetés seulement</label>
 				</div>
 				<p class="soft petit">{critereActif.label} : {critereActif.aide}.</p>
 
@@ -216,6 +218,7 @@
 									{#if p.url}<a href={p.url} target="_blank" rel="noopener noreferrer">{p.libelle_format} du {date(p.published_at)}</a>
 									{:else}{p.libelle_format} du {date(p.published_at)}{/if}
 									{#if p.boosts}<span class="badge pub">Boosté ×{p.boosts}</span>{/if}
+									{#if p.likes_superieurs_aux_vues}<span class="badge achat" title="Plus de likes que de vues">Likes achetés</span>{/if}
 								</div>
 								<strong class="valeur">{valeurCritere(p, critere)}</strong>
 							</div>
@@ -231,7 +234,7 @@
 
 							{#if p.likes_faux_estimes != null}
 								<div class="barre-legende">
-									<span>{pct(p.part_likes_faux)} de faux</span>
+									<span>{pct(p.part_likes_faux)} de faux{#if p.estimation === 'likes au-delà des vues'}{' · au-delà des vues'}{/if}</span>
 									<span><i class="pastille vrai"></i>authentiques {nombre(p.likes_authentiques_estimes)} · <i class="pastille faux"></i>faux {nombre(p.likes_faux_estimes)}</span>
 								</div>
 								<div class="barre" aria-hidden="true">
@@ -239,7 +242,7 @@
 									<span class="faux" style:width={largeur(p.likes_faux_estimes, p.likes ?? 0)}></span>
 								</div>
 							{:else}
-								<p class="soft petit">Likers pas encore analysés.</p>
+								<p class="soft petit">Likers pas encore analysés, et pas plus de likes que de vues.</p>
 							{/if}
 
 							<dl>
@@ -390,6 +393,7 @@
 	.valeur { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 	.badge { font-size: 0.72rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 700; }
 	.badge.pub { background: color-mix(in srgb, var(--paye) 20%, transparent); color: var(--paye); }
+	.badge.achat { background: color-mix(in srgb, var(--faux) 18%, transparent); color: var(--faux); }
 
 	.barre-legende { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-soft); margin-top: 0.7rem; }
 	.barre { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--surface-soft); margin-top: 0.25rem; }

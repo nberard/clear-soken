@@ -34,6 +34,9 @@ test('top des réels : tri décroissant, valeurs absentes à la fin, images excl
 	assert.deepEqual(top(pubs, 'likes_authentiques_estimes', 1, false).map((p) => p.publication_id), ['d']);
 	assert.deepEqual(top(pubs, 'part_likes_faux', 2).map((p) => p.publication_id), ['a', 'b']);
 	assert.equal(top(pubs, 'likes_payes', 1)[0].publication_id, 'e');
+	const achetes = [...pubs, pub('f', 'video_courte', { likes_superieurs_aux_vues: true, likes_au_dela_des_vues: 900 })];
+	assert.deepEqual(top(achetes, 'likes', 10, true, true).map((p) => p.publication_id), ['f']);
+	assert.equal(top(achetes, 'likes_au_dela_des_vues', 1)[0].publication_id, 'f');
 	assert.equal(pubs[0].publication_id, 'a'); // le tableau d'origine n'est pas modifié
 });
 
