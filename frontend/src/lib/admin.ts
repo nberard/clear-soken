@@ -29,6 +29,11 @@ export type Publication = {
 	part_likes_faux: number | null;
 	likes_faux_estimes: number | null;
 	likes_authentiques_estimes: number | null;
+	/** Plus de likes que de vues (organiques + payées) : signe de likes achetés */
+	likes_superieurs_aux_vues?: boolean | null;
+	likes_au_dela_des_vues?: number | null;
+	/** D'où vient l'estimation des faux likes */
+	estimation?: 'likers analysés' | 'likes au-delà des vues' | null;
 };
 
 export type Compte = {
@@ -66,7 +71,8 @@ export const NIVEAUX: Niveau[] = ['probablement faux', 'à vérifier', 'plutôt 
 export const CRITERES = [
 	{ id: 'likes_authentiques_estimes', label: 'Likes authentiques', aide: 'likes moins les faux estimés' },
 	{ id: 'likes_faux_estimes', label: 'Likes faux', aide: 'estimés d’après les likers analysés' },
-	{ id: 'part_likes_faux', label: '% de likes faux', aide: 'probabilité moyenne des likers' },
+	{ id: 'part_likes_faux', label: '% de likes faux', aide: 'likers analysés, ou likes au-delà des vues' },
+	{ id: 'likes_au_dela_des_vues', label: 'Likes au-delà des vues', aide: 'plus de likes que de vues, signe de likes achetés' },
 	{ id: 'likes_payes', label: 'Likes payés', aide: 'apportés par les boosts' },
 	{ id: 'likes_organiques', label: 'Likes organiques', aide: 'likes moins likes payés' },
 	{ id: 'vues_organiques', label: 'Vues organiques', aide: 'vues moins vues payées' },
@@ -82,9 +88,16 @@ export function estReel(p: Publication): boolean {
 }
 
 /** Top `n` des publications selon un critère, du plus grand au plus petit, valeurs absentes à la fin */
-export function top(pubs: Publication[], critere: Critere, n: number, reelsSeulement = true): Publication[] {
+export function top(
+	pubs: Publication[],
+	critere: Critere,
+	n: number,
+	reelsSeulement = true,
+	achetesSeulement = false
+): Publication[] {
 	return pubs
 		.filter((p) => !reelsSeulement || estReel(p))
+		.filter((p) => !achetesSeulement || p.likes_superieurs_aux_vues)
 		.toSorted((a, b) => {
 			const va = a[critere];
 			const vb = b[critere];
