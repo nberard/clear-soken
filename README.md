@@ -101,6 +101,7 @@ Vérifie : https://clearsoken.touplitoui.me (le certificat peut prendre une minu
 | `make qr` | QR code à afficher dans le service (`sudo apt install qrencode`) |
 | `make compte NOM=psycho [ROLES=pote,admin]` | crée un compte de pote ou change son mot de passe (voir « Comptes des potes ») |
 | `make comptes` / `make compte-roles NOM=… ROLES=…` / `make compte-supprimer NOM=…` | liste, rôles, suppression |
+| `make admin-cle CLE=cle.json` | ouvre l'espace admin (stats Instagram) avec la clé BigQuery (voir « Espace admin ») |
 
 Pour ajouter un autre site plus tard : un nouveau bloc dans `proxy/Caddyfile`, le conteneur sur le réseau `proxy`, puis `make proxy`.
 
@@ -161,6 +162,48 @@ make compte-supprimer NOM=psycho
 - Les services vérifient un compte par `POST /api/comptes/verifier` (`{"nom", "mot_de_passe"}` → `{"nom", "roles"}`),
   avec `Authorization: Bearer COMPTES_JETON`. Sans jeton dans `.env`, la route est fermée. Caddy la bloque depuis
   Internet (`proxy/Caddyfile`, `make proxy` après mise à jour) : seuls les conteneurs du réseau `proxy` l'atteignent.
+
+## À côté : espace admin (stats Instagram)
+
+`https://clearsoken.touplitoui.me/admin/` : les stats Instagram que l'appli Instagram ne montre pas, pour les
+comptes des potes qui ont le rôle **`admin`** (`make compte NOM=nico ROLES=pote,admin`). Sans lien avec l'appli
+patients : pas de lien depuis l'appli, pas de barre de navigation, et le service worker ne met rien de l'admin en
+cache sur le téléphone.
+
+| Onglet | Ce qu'on y voit |
+|---|---|
+| **Top réels** | top 10 / 25 / tout, classé par likes authentiques, likes faux, % de faux, likes ou vues payés (boosts), likes ou vues organiques… Pour chaque réel : likes organiques / payés, authentiques / faux estimés, vues, dépense et coût par abonné des boosts |
+| **Faux comptes** | abonnés faux estimés, % moyen de faux parmi les likers, et chaque compte analysé avec sa **probabilité d'être faux** et les raisons (pas de photo, aucune publication, suit des milliers de comptes…), filtrable par niveau |
+| **Provenance** | pays des abonnés, part hors du marché visé (FR, BE, CH, CA par défaut) |
+
+Les chiffres sont calculés par [`clearmind-tools`](https://github.com/nberard/clearmind-tools) (`data-platform/`,
+marts `mart_instagram_*` et `mart_audience_pays`, mis à jour chaque nuit par Airflow) et lus dans **BigQuery**. Les
+boosts viennent de l'API Marketing de Meta, les likers et profils de l'API privée Instagram (compte secondaire) :
+voir « Instagram avancé » dans le README de `data-platform`.
+
+### Mise en place (une fois)
+
+1. Dans Google Cloud : un compte de service avec les rôles **BigQuery Data Viewer** et **BigQuery Job User**, et une
+   clé JSON.
+2. Sur le serveur : `git pull && make admin-cle CLE=chemin/vers/cle.json`. La clé est copiée dans `secrets/` (non
+   versionné, lisible par l'appli seulement), `BQ_CLE` est renseigné dans `.env`, l'appli redémarre.
+3. Un compte admin : `make compte NOM=nico ROLES=pote,admin`.
+
+Si le dataset n'est pas `clearmind_or` (prod dbt), règle `BQ_DATASET` (et `BQ_PROJET`) dans `.env`.
+
+**Sécurité** : connexion avec le mot de passe du compte (Argon2), cookie de session `HttpOnly`, `Secure`,
+`SameSite=Strict`, limité à `/api/admin`, valable 12 h et gardé en mémoire seulement (un redémarrage déconnecte).
+Après 10 mots de passe faux en 10 minutes, la connexion est suspendue. Le navigateur choisit une vue, jamais une
+requête : l'API n'exécute que 4 requêtes écrites dans `backend/src/admin.rs`, plafonnées à 100 Mo lus chacune, avec
+un cache de 10 minutes. Réponses en `Cache-Control: no-store`.
+
+**Sans Google Cloud** (développement) : exporte les marts de la base DuckDB de démo de clearmind-tools, puis lance
+l'API avec `ADMIN_DONNEES_DIR` :
+
+```bash
+python3 scripts/admin-donnees-duckdb.py ../clearmind-tools/data-platform/local/clearmind.duckdb admin-donnees/
+ADMIN_DONNEES_DIR=admin-donnees make dev-api
+```
 
 ## À côté : tableau de bord santé perso (`mint-health/`)
 

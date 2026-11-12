@@ -7,3 +7,6 @@ qr-*.png
 .DS_Store
 backend/data/centres.json
 __pycache__/
+# Espace admin : clé du compte de service BigQuery, données de démo exportées
+secrets/
+admin-donnees/

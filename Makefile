@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton admin-cle
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -89,6 +89,15 @@ compte-supprimer: ## supprime un compte : make compte-supprimer NOM=psycho
 
 comptes:          ## liste les comptes et leurs rôles
 	@$(COMPTE_CLI) liste
+
+admin-cle:        ## espace admin : installe la clé BigQuery (CLE=chemin/vers/cle.json) et redémarre l'appli
+	@[ -n "$(CLE)" ] && [ -f "$(CLE)" ] || { echo "usage : make admin-cle CLE=chemin/vers/cle.json"; exit 1; }
+	@[ -f .env ] || cp .env.example .env
+	@mkdir -p secrets && sudo install -m 600 -o 10001 "$(CLE)" secrets/bigquery.json
+	@if grep -q '^BQ_CLE=' .env; then sed -i 's|^BQ_CLE=.*|BQ_CLE=/app/secrets/bigquery.json|' .env; \
+	  else echo "BQ_CLE=/app/secrets/bigquery.json" >> .env; fi
+	@docker compose up -d clearsoken
+	@echo "-> clé installée dans secrets/ (lisible par l'appli seulement). Pense à effacer la copie téléchargée."
 
 compte-jeton:     ## crée le jeton COMPTES_JETON (.env) que présentent les services qui vérifient un compte
 	@[ -f .env ] || cp .env.example .env

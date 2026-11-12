@@ -6,6 +6,8 @@
 //! Le tri des centres par distance se fait sur le téléphone : la position
 //! du patient n'est jamais envoyée ici.
 
+mod admin;
+mod bigquery;
 mod comptes;
 mod pricing;
 
@@ -25,6 +27,7 @@ use tower_http::{
 };
 use tracing_subscriber::EnvFilter;
 
+pub use admin::Admin;
 pub use comptes::Comptes;
 pub use pricing::Pricing;
 
@@ -48,6 +51,8 @@ pub struct AppState {
     pub comptes: Arc<Comptes>,
     /// Jeton des services qui vérifient un compte (COMPTES_JETON) ; sans jeton, /api/comptes/verifier est fermé
     pub comptes_jeton: Option<Arc<str>>,
+    /// Espace admin (stats Instagram, voir admin.rs) ; None sans BQ_CLE ni ADMIN_DONNEES_DIR : /api/admin répond 404
+    pub admin: Option<Arc<Admin>>,
 }
 
 pub struct Config {
@@ -107,6 +112,7 @@ pub fn app(state: AppState, static_dir: PathBuf) -> Router {
         .route("/centres", get(list_centres))
         .route("/plans", get(plans))
         .route("/comptes/verifier", post(comptes::verifier))
+        .nest("/admin", admin::routes())
         .with_state(state)
         .layer(CompressionLayer::new());
 
@@ -232,7 +238,12 @@ async fn main() {
         pricing: Arc::new(pricing),
         comptes: Arc::new(Comptes::new(config.comptes_file.clone())),
         comptes_jeton: env::var("COMPTES_JETON").ok().filter(|j| j.len() >= 32).map(Into::into),
+        admin: admin::depuis_env().map(Arc::new),
     };
+    match &state.admin {
+        Some(a) => tracing::info!("espace admin ouvert ({})", a.description()),
+        None => tracing::info!("espace admin fermé (ni BQ_CLE ni ADMIN_DONNEES_DIR)"),
+    }
     if state.comptes_jeton.is_none() {
         tracing::info!("COMPTES_JETON absent (ou moins de 32 caractères) : vérification des comptes fermée");
     }
@@ -262,6 +273,10 @@ mod tests {
     }
 
     fn test_app_comptes(comptes_file: PathBuf) -> Router {
+        test_app_admin(comptes_file, None)
+    }
+
+    fn test_app_admin(comptes_file: PathBuf, admin: Option<Admin>) -> Router {
         let resources = load_resources(&"data/resources.json".into());
         let pricing = Arc::new(Pricing::new(2, 30, 0));
         app(
@@ -271,6 +286,7 @@ mod tests {
                 pricing,
                 comptes: Arc::new(Comptes::new(comptes_file)),
                 comptes_jeton: Some(JETON.into()),
+                admin: admin.map(Arc::new),
             },
             "../frontend/build".into(),
         )
@@ -356,6 +372,86 @@ mod tests {
         assert_eq!(app.clone().oneshot(demande(JETON, "mauvais")).await.unwrap().status(), 401);
         assert_eq!(app.oneshot(demande("pas-le-bon-jeton", "motdepasse")).await.unwrap().status(), 403);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn espace_admin() {
+        let dir = std::env::temp_dir().join(format!("admin-api-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("comptes.json");
+        comptes::ecrire(
+            &file,
+            &[
+                comptes::Compte { nom: "nico".into(), hash: comptes::hacher("motdepasse"), roles: vec!["pote".into(), "admin".into()] },
+                comptes::Compte { nom: "psycho".into(), hash: comptes::hacher("motdepasse"), roles: vec!["pote".into()] },
+            ],
+        )
+        .unwrap();
+        std::fs::write(dir.join("mart_audience_pays.json"), r#"[{"pays":"FR","abonnes":5200,"part":0.44,"pays_attendu":true}]"#).unwrap();
+        let app = test_app_admin(file.clone(), Some(Admin::new(admin::Source::Fichiers(dir.clone()))));
+        let connexion = |nom: &str, mdp: &str| {
+            Request::post("/api/admin/connexion")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(r#"{{"nom":"{nom}","mot_de_passe":"{mdp}"}}"#)))
+                .unwrap()
+        };
+        let stats = |vue: &str, cookie: &str| {
+            Request::get(format!("/api/admin/stats/{vue}")).header("cookie", cookie).body(Body::empty()).unwrap()
+        };
+
+        // Sans session : rien
+        assert_eq!(app.clone().oneshot(stats("pays", "")).await.unwrap().status(), 401);
+        // Compte sans le rôle admin, ou mauvais mot de passe : refusé
+        assert_eq!(app.clone().oneshot(connexion("psycho", "motdepasse")).await.unwrap().status(), 401);
+        assert_eq!(app.clone().oneshot(connexion("nico", "mauvais")).await.unwrap().status(), 401);
+
+        let res = app.clone().oneshot(connexion("nico", "motdepasse")).await.unwrap();
+        assert_eq!(res.status(), 200);
+        assert_eq!(res.headers()["cache-control"], "no-store");
+        let cookie = res.headers()["set-cookie"].to_str().unwrap().to_owned();
+        for attribut in ["HttpOnly", "Secure", "SameSite=Strict", "Path=/api/admin"] {
+            assert!(cookie.contains(attribut), "{attribut} manquant : {cookie}");
+        }
+        let cookie = cookie.split(';').next().unwrap().to_owned();
+
+        let res = app.clone().oneshot(stats("pays", &cookie)).await.unwrap();
+        assert_eq!(res.status(), 200);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["lignes"][0]["pays"], "FR");
+        assert_eq!(app.clone().oneshot(stats("..%2Fcomptes", &cookie)).await.unwrap().status(), 404);
+        assert_eq!(app.clone().oneshot(stats("inconnue", &cookie)).await.unwrap().status(), 404);
+        // Fichier absent : erreur lisible, pas de plantage
+        assert_eq!(app.clone().oneshot(stats("comptes", &cookie)).await.unwrap().status(), 502);
+
+        let moi = |c: &str| Request::get("/api/admin/moi").header("cookie", c).body(Body::empty()).unwrap();
+        assert_eq!(app.clone().oneshot(moi(&cookie)).await.unwrap().status(), 200);
+        let fin = Request::post("/api/admin/deconnexion").header("cookie", &cookie).body(Body::empty()).unwrap();
+        assert_eq!(app.clone().oneshot(fin).await.unwrap().status(), 204);
+        assert_eq!(app.clone().oneshot(moi(&cookie)).await.unwrap().status(), 401);
+
+        // Sans source configurée : l'espace admin n'existe pas
+        let ferme = test_app_comptes(file);
+        assert_eq!(ferme.oneshot(connexion("nico", "motdepasse")).await.unwrap().status(), 404);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn admin_suspendu_apres_trop_d_echecs() {
+        let app = test_app_admin(
+            std::env::temp_dir().join("clear-soken-aucun-compte.json"),
+            Some(Admin::new(admin::Source::Fichiers(std::env::temp_dir()))),
+        );
+        let essai = || {
+            Request::post("/api/admin/connexion")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"nom":"nico","mot_de_passe":"faux"}"#))
+                .unwrap()
+        };
+        for _ in 0..10 {
+            assert_eq!(app.clone().oneshot(essai()).await.unwrap().status(), 401);
+        }
+        assert_eq!(app.oneshot(essai()).await.unwrap().status(), 429);
     }
 
     #[test]

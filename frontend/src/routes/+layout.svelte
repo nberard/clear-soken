@@ -13,26 +13,33 @@
 		{ href: '/echelons/', label: 'Échelons', icon: '🪜' },
 		{ href: '/ressources/', label: 'Ressources', icon: '🤝' }
 	];
+
+	// L'espace admin (stats Instagram) n'a rien à voir avec l'appli patients : ni barre, ni bouton d'aide
+	const admin = $derived(page.url.pathname.startsWith('/admin'));
 </script>
 
 <svelte:head>
 	<title>Clear Soken</title>
 </svelte:head>
 
-<a class="help" href="/aide/" aria-label="Besoin d’aide maintenant">Besoin d’aide</a>
-
-<main>
+{#if admin}
 	{@render children()}
-</main>
+{:else}
+	<a class="help" href="/aide/" aria-label="Besoin d’aide maintenant">Besoin d’aide</a>
 
-<nav aria-label="Navigation principale">
-	{#each nav as item (item.href)}
-		<a href={item.href} aria-current={page.url.pathname === item.href ? 'page' : undefined}>
-			<span aria-hidden="true">{item.icon}</span>
-			{item.label}
-		</a>
-	{/each}
-</nav>
+	<main>
+		{@render children()}
+	</main>
+
+	<nav aria-label="Navigation principale">
+		{#each nav as item (item.href)}
+			<a href={item.href} aria-current={page.url.pathname === item.href ? 'page' : undefined}>
+				<span aria-hidden="true">{item.icon}</span>
+				{item.label}
+			</a>
+		{/each}
+	</nav>
+{/if}
 
 <style>
 	main {
