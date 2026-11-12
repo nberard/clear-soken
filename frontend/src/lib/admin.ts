@@ -17,11 +17,12 @@ export type Publication = {
 	boosts: number;
 	depense: number;
 	devise: string | null;
-	likes_payes: number;
+	/** Vide : boost connu seulement par ses reçus e-mail (likes payés inconnus) */
+	likes_payes: number | null;
 	likes_organiques: number;
-	vues_payees: number;
+	vues_payees: number | null;
 	vues_organiques: number;
-	abonnements_payes: number;
+	abonnements_payes: number | null;
 	cout_par_abonne: number | null;
 	likers_releves: number;
 	likers_analyses: number;
