@@ -44,10 +44,12 @@
 	let combien = $state(10);
 	let reelsSeulement = $state(true);
 	let achetesSeulement = $state(false);
+	let sansPeriodesAchat = $state(false);
+	const aDesPeriodes = $derived(publications.some((p) => p.periode_achat));
 	let filtre: FiltreComptes = $state({ niveau: 'probablement faux', population: 'tous', recherche: '' });
 	let affiches = $state(50);
 
-	const classement = $derived(top(publications, critere, combien, reelsSeulement, achetesSeulement));
+	const classement = $derived(top(publications, critere, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat));
 	const critereActif = $derived(CRITERES.find((c) => c.id === critere)!);
 	const comptesFiltres = $derived(filtrerComptes(comptes, filtre));
 	const niveaux = $derived(compterNiveaux(comptes));
@@ -200,6 +202,9 @@
 					</label>
 					<label class="case"><input type="checkbox" bind:checked={reelsSeulement} /> Réels seulement</label>
 					<label class="case"><input type="checkbox" bind:checked={achetesSeulement} /> Likes achetés seulement</label>
+					{#if aDesPeriodes}
+						<label class="case"><input type="checkbox" bind:checked={sansPeriodesAchat} /> Sans les périodes d’achat</label>
+					{/if}
 				</div>
 				<p class="soft petit">{critereActif.label} : {critereActif.aide}.</p>
 
@@ -219,6 +224,7 @@
 									{:else}{p.libelle_format} du {date(p.published_at)}{/if}
 									{#if p.boosts}<span class="badge pub">Boosté ×{p.boosts}</span>{/if}
 									{#if p.likes_superieurs_aux_vues}<span class="badge achat" title="Plus de likes que de vues">Likes achetés</span>{/if}
+									{#if p.periode_achat}<span class="badge periode" title="Publiée pendant une période d’achat de likes ou d’abonnés">Période d’achat</span>{/if}
 								</div>
 								<strong class="valeur">{valeurCritere(p, critere)}</strong>
 							</div>
@@ -394,6 +400,7 @@
 	.badge { font-size: 0.72rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 700; }
 	.badge.pub { background: color-mix(in srgb, var(--paye) 20%, transparent); color: var(--paye); }
 	.badge.achat { background: color-mix(in srgb, var(--faux) 18%, transparent); color: var(--faux); }
+	.badge.periode { background: color-mix(in srgb, var(--doute) 20%, transparent); color: var(--doute); }
 
 	.barre-legende { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-soft); margin-top: 0.7rem; }
 	.barre { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--surface-soft); margin-top: 0.25rem; }
