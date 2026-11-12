@@ -229,7 +229,7 @@
 							</div>
 							<div class="barre" aria-hidden="true">
 								<span class="org" style:width={largeur(p.likes_organiques, p.likes ?? 0)}></span>
-								<span class="paye" style:width={largeur(p.likes_payes, p.likes ?? 0)}></span>
+								<span class="paye" style:width={largeur(p.likes_payes ?? 0, p.likes ?? 0)}></span>
 							</div>
 
 							{#if p.likes_faux_estimes != null}
