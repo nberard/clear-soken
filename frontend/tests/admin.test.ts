@@ -65,6 +65,8 @@ test('filtre des comptes', () => {
 	assert.deepEqual(filtrerComptes(comptes, { ...tous, niveau: 'probablement faux' }).map((c) => c.nom_compte), ['user84729301']);
 	assert.deepEqual(filtrerComptes(comptes, { ...tous, population: 'likers' }).map((c) => c.nom_compte), ['julie_photo', 'lea.b']);
 	assert.deepEqual(filtrerComptes(comptes, { ...tous, recherche: '@JULIE' }).map((c) => c.nom_compte), ['julie_photo']);
+	const suivis = [...comptes, { ...compte('bot123456', 92, 'probablement faux', false, false), est_suivi: true }];
+	assert.deepEqual(filtrerComptes(suivis, { ...tous, population: 'suivis' }).map((c) => c.nom_compte), ['bot123456']);
 	assert.deepEqual(compterNiveaux(comptes), { 'probablement faux': 1, 'à vérifier': 1, 'plutôt réel': 1 });
 });
 

@@ -57,6 +57,7 @@
 	const maxPays = $derived(Math.max(1, ...pays.map((p) => p.abonnes)));
 	const qAbonnes = $derived(qualite.find((q) => q.population === 'abonnes'));
 	const qLikers = $derived(qualite.find((q) => q.population === 'likers'));
+	const qSuivis = $derived(qualite.find((q) => q.population === 'suivis'));
 
 	async function charger(vue: string) {
 		const res = await fetch(`/api/admin/stats/${vue}`, { credentials: 'same-origin' });
@@ -280,6 +281,14 @@
 						<strong>{pct(qLikers?.proba_faux_moyenne)}</strong>
 						<span class="soft petit">{nombre(qLikers?.comptes_analyses)} likers analysés</span>
 					</div>
+					{#if qSuivis}
+						<div class="card tuile">
+							<span class="soft">Comptes que je suis : faux probables</span>
+							<strong>{nombre(qSuivis.probablement_faux)}</strong>
+							<span class="soft petit">sur {nombre(qSuivis.comptes_analyses)} analysés · {nombre(qSuivis.a_verifier)} à vérifier</span>
+							<button class="lien" onclick={() => { filtre.population = 'suivis'; filtre.niveau = 'probablement faux'; }}>Voir la liste</button>
+						</div>
+					{/if}
 				</div>
 
 				<div class="barre grande" aria-hidden="true">
@@ -298,7 +307,8 @@
 					<label>
 						Parmi
 						<select bind:value={filtre.population}>
-							<option value="tous">abonnés et likers</option>
+							<option value="tous">tous les comptes analysés</option>
+							<option value="suivis">comptes que je suis</option>
 							<option value="abonnes">abonnés</option>
 							<option value="likers">likers des réels</option>
 						</select>
@@ -313,7 +323,7 @@
 							<div class="tete">
 								<span class="pct {classeNiveau(c.niveau)}">{c.pct_faux} %</span>
 								<a href={c.url} target="_blank" rel="noopener noreferrer">@{c.nom_compte}</a>
-								<span class="soft petit">{[c.est_abonne && 'abonné', c.est_liker && `${c.reels_likes} réel${c.reels_likes > 1 ? 's' : ''} liké${c.reels_likes > 1 ? 's' : ''}`].filter(Boolean).join(' · ')}</span>
+								<span class="soft petit">{[c.est_suivi && 'je le suis', c.est_abonne && 'me suit', c.est_liker && `${c.reels_likes} réel${c.reels_likes > 1 ? 's' : ''} liké${c.reels_likes > 1 ? 's' : ''}`].filter(Boolean).join(' · ')}</span>
 							</div>
 							{#if c.raisons}<p class="petit">{c.raisons}</p>{/if}
 							<p class="soft petit">{nombre(c.abonnes)} abonnés · {nombre(c.abonnements)} abonnements · {nombre(c.publications)} publications</p>
