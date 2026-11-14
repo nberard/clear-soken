@@ -47,6 +47,8 @@ export type Compte = {
 	niveau: Niveau;
 	raisons: string | null;
 	est_abonne: boolean;
+	/** Un compte que je suis (pour faire le ménage) */
+	est_suivi?: boolean | null;
 	est_liker: boolean;
 	reels_likes: number;
 	abonnes: number | null;
@@ -55,7 +57,7 @@ export type Compte = {
 };
 
 export type Qualite = {
-	population: 'abonnes' | 'likers';
+	population: 'abonnes' | 'likers' | 'suivis';
 	comptes_analyses: number;
 	proba_faux_moyenne: number | null;
 	probablement_faux: number;
@@ -113,14 +115,19 @@ export function top(
 		.slice(0, n);
 }
 
-export type FiltreComptes = { niveau: Niveau | 'tous'; population: 'tous' | 'abonnes' | 'likers'; recherche: string };
+export type FiltreComptes = {
+	niveau: Niveau | 'tous';
+	population: 'tous' | 'abonnes' | 'likers' | 'suivis';
+	recherche: string;
+};
 
 export function filtrerComptes(comptes: Compte[], f: FiltreComptes): Compte[] {
 	const q = f.recherche.trim().toLowerCase().replace(/^@/, '');
 	return comptes.filter(
 		(c) =>
 			(f.niveau === 'tous' || c.niveau === f.niveau) &&
-			(f.population === 'tous' || (f.population === 'abonnes' ? c.est_abonne : c.est_liker)) &&
+			(f.population === 'tous' ||
+				(f.population === 'abonnes' ? c.est_abonne : f.population === 'suivis' ? !!c.est_suivi : c.est_liker)) &&
 			(!q || c.nom_compte.toLowerCase().includes(q))
 	);
 }
