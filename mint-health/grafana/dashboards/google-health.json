@@ -403,7 +403,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 12
       },
@@ -418,69 +418,6 @@
           "format": "time_series",
           "rawQuery": true,
           "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_best WHERE (metric LIKE 'daily-resting-heart-rate.%' OR metric LIKE 'daily-heart-rate-variability.%' OR metric LIKE 'heart-rate.%') AND $__timeFilter(day::timestamptz) ORDER BY 1"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "lineWidth": 2,
-            "barAlignment": 0,
-            "showPoints": "auto",
-            "spanNulls": true,
-            "gradientMode": "opacity",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisBorderShow": false
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      }
-    },
-    {
-      "id": 13,
-      "type": "timeseries",
-      "title": "Poids",
-      "transparent": true,
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "healthpg"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "healthpg"
-          },
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT day::timestamptz AS time, metric, value FROM daily_best WHERE metric LIKE 'weight.%' AND $__timeFilter(day::timestamptz) ORDER BY 1"
         }
       ],
       "fieldConfig": {
