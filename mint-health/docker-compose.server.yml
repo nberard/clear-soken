@@ -16,7 +16,9 @@ services:
       GF_RENDERING_CALLBACK_URL: http://grafana:3000/health/
       # Le mot de passe est géré par Caddy : Grafana doit ignorer l'en-tête Basic qu'il transmet.
       GF_AUTH_BASIC_ENABLED: "false"
-      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      # Formulaire visible pour se connecter en admin (modifier les dashboards) sur
+      # /health/login avec admin / GRAFANA_ADMIN_PASSWORD. La consultation reste anonyme.
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
       GF_SECURITY_COOKIE_SECURE: "true"
     networks: [default, proxy]
 
