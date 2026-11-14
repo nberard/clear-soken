@@ -91,7 +91,7 @@ Internet ─► Caddy ─► health.touplitoui.me  (mot de passe)
 
 **Applet sur ton PC** (clic droit → Configurer) : URL du service `https://health.touplitoui.me/health/api`, URL de Grafana `https://health.touplitoui.me/health`, et ton identifiant et mot de passe. Ils sont stockés dans un fichier privé (`~/.cache/google-health-applet/curl-auth.conf`, droits 600), jamais passés en argument de commande.
 
-Sur le serveur, Grafana n'a ni formulaire de connexion ni authentification propre : c'est Caddy qui protège tout l'hôte. Les données restent sur ton serveur OVH ; pour un tableau de bord personnel ce n'est pas un hébergement HDS, mais il ne faut pas y mettre de données de patients.
+Sur le serveur, c'est Caddy qui protège tout l'hôte : Grafana est consultable sans compte (lecture seule). Pour modifier les dashboards, connecte-toi en admin sur `https://health.touplitoui.me/health/login` (`admin` / `GRAFANA_ADMIN_PASSWORD`). Les données restent sur ton serveur OVH ; pour un tableau de bord personnel ce n'est pas un hébergement HDS, mais il ne faut pas y mettre de données de patients.
 
 ## Google Fit et Health Connect (téléphone Android)
 
