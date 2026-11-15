@@ -162,3 +162,18 @@ test('tranches de vues : on groupe par audience, puis on classe par likes dans c
 	assert.deepEqual(ids, ['b', 'a', 'd', 'c']);  // 10 k – 100 k : b (2 000 likes) devant a (1 133) ; puis 1 k – 10 k
 	assert.equal(valeurCritere(liste[0], 'tranche_vues'), '10 k – 100 k vues');
 });
+
+test('deux critères chiffrés : le 1er regroupe par tranches, le 2e classe dans chaque tranche', async () => {
+	const { top, libelleGroupe } = await import('../src/lib/admin.ts');
+	const liste = [
+		pub('vieux-gros', 'video_courte', { likes_authentiques_estimes: 46000, published_at: '2025-05-05T10:00:00Z' }),
+		pub('recent-gros', 'video_courte', { likes_authentiques_estimes: 33000, published_at: '2025-05-22T10:00:00Z' }),
+		pub('petit', 'video_courte', { likes_authentiques_estimes: 800, published_at: '2024-01-01T10:00:00Z' })
+	];
+	// likes authentiques ↓ puis date ↓ : dans la tranche 10 k – 100 k, le plus récent d'abord (même s'il a moins de likes)
+	const ids = top(liste, [{ critere: 'likes_authentiques_estimes', sens: 'desc' }, { critere: 'published_at', sens: 'desc' }], 10)
+		.map((p) => p.publication_id);
+	assert.deepEqual(ids, ['recent-gros', 'vieux-gros', 'petit']);
+	assert.equal(libelleGroupe(liste[0], 'likes_authentiques_estimes'), '10 k – 100 k · likes authentiques');
+	assert.equal(libelleGroupe(pub('x', 'video_courte', { part_likes_faux: 0.15 }), 'part_likes_faux'), '10 à 20 % · % de likes faux');
+});

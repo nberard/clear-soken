@@ -165,11 +165,40 @@ export function fourchette(p: Publication): string {
 }
 
 /** Tri sur plusieurs niveaux : le 2e départage les égalités du 1er. Valeurs absentes toujours à la fin. */
+const POURCENTAGES: readonly string[] = ['part_likes_faux', 'engagement_authentique'];
+const estCritereGroupe = (c: Critere) => CRITERES.some((x) => x.id === c && 'groupe' in x && x.groupe);
+
+/** Groupe d'une publication pour un critère : le critère lui-même s'il forme déjà des groupes (mois, boosts…),
+ *  sinon des tranches (nombres : moins de 1 k, 1 k – 10 k… ; pourcentages : par 10 points ; date : par mois) */
+export function groupe(p: Publication, c: Critere): number | null {
+	if (estCritereGroupe(c)) return valeur(p, c);
+	if (c === 'published_at') return valeur(p, 'mois');
+	const v = valeur(p, c);
+	if (v == null) return null;
+	return POURCENTAGES.includes(c) ? Math.min(9, Math.floor(v * 10)) : tranche(v);
+}
+
+/** Titre du groupe : « 10 k – 100 k likes authentiques », « 10 à 20 % de likes faux », « mai 2025 », « Pas boostées »… */
+export function libelleGroupe(p: Publication, c: Critere): string {
+	const g = groupe(p, c);
+	const nom = CRITERES.find((x) => x.id === c)!.label.replace(/ \(.*\)$/, '').toLowerCase();
+	if (c === 'periode_achat') return p.periode_achat ? 'Pendant une période d’achat' : 'Hors périodes d’achat';
+	if (c === 'boosts') return p.boosts ? `Boostées ×${p.boosts}` : 'Pas boostées';
+	if (c === 'mois' || c === 'published_at') return valeurCritere(p, 'mois');
+	if (c === 'tranche_vues' || c === 'tranche_likes') return valeurCritere(p, c);
+	if (g == null) return `Sans ${nom}`;
+	if (POURCENTAGES.includes(c)) return `${g * 10} à ${g * 10 + 10} % · ${nom}`;
+	return `${TRANCHES[g]} · ${nom}`;
+}
+
+/** Tri sur un ou deux niveaux. Avec deux niveaux, le 1er forme des groupes (tranches, mois) et le 2e classe
+ *  à l'intérieur de chaque groupe : deux nombres ne sont jamais exactement égaux, sinon le 2e ne servirait à rien. */
 export function trier(pubs: Publication[], tris: Tri[]): Publication[] {
 	return pubs.toSorted((a, b) => {
-		for (const { critere, sens } of tris) {
-			const va = valeur(a, critere);
-			const vb = valeur(b, critere);
+		for (const [i, { critere, sens }] of tris.entries()) {
+			const parGroupe = i === 0 && tris.length > 1;
+			const va = parGroupe ? groupe(a, critere) : valeur(a, critere);
+			const vb = parGroupe ? groupe(b, critere) : valeur(b, critere);
 			if (va == null && vb == null) continue;
 			if (va == null) return 1;
 			if (vb == null) return -1;

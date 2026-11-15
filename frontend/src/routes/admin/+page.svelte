@@ -10,6 +10,7 @@
 		date,
 		description,
 		filtrerComptes,
+		libelleGroupe,
 		fourchette,
 		nombre,
 		nomPays,
@@ -74,20 +75,16 @@
 	const classement = $derived(tousClasses.slice(0, combien));
 	const critereActif = $derived(CRITERES.find((c) => c.id === critere)!);
 	const estGroupe = (c: object | undefined) => !!c && 'groupe' in c && !!c.groupe;
-	/** 1er niveau en groupes (mois, période d'achat, boosts) : titres de groupe entre les cartes */
-	const parGroupes = $derived(estGroupe(critereActif));
+	/** Titres de groupe entre les cartes : dès qu'il y a un 2e niveau (le 1er forme alors des tranches ou des mois),
+	 *  ou quand le 1er critère est lui-même un groupe (mois, période d'achat, boosts, tranches) */
+	const parGroupes = $derived(estGroupe(critereActif) || (!!critere2Actif && critere2Actif.id !== critereActif.id));
 	/** Chiffre mis en avant sur la carte : le 2e critère quand le 1er ne fait que regrouper */
-	const critereAffiche = $derived(parGroupes && critere2Actif ? critere2Actif : critereActif);
+	const critereAffiche = $derived(estGroupe(critereActif) && critere2Actif ? critere2Actif : critereActif);
 	/** Critère rappelé sous la date (ni celui mis en avant, ni le groupe, ni la date déjà affichée) */
 	const critereRappel = $derived(
 		[critereActif, critere2Actif].find((c) => c && c !== critereAffiche && !estGroupe(c) && c.id !== 'published_at')
 	);
-	const titreGroupe = (p: Publication) =>
-		critere === 'periode_achat'
-			? p.periode_achat ? 'Pendant une période d’achat' : 'Hors périodes d’achat'
-			: critere === 'boosts'
-				? p.boosts ? `Boostées ×${p.boosts}` : 'Pas boostées'
-				: valeurCritere(p, critere);
+	const titreGroupe = (p: Publication) => libelleGroupe(p, critere);
 	const comptesFiltres = $derived(filtrerComptes(comptes, filtre));
 	const niveaux = $derived(compterNiveaux(comptes));
 	const audience = $derived(resumeAudience(pays));
@@ -319,9 +316,9 @@
 				</label>
 				<p class="soft petit">
 					{#if parGroupes}
-						Groupes par {critereActif.label.toLowerCase()}{#if critere2Actif}, classés par {critere2Actif.label.toLowerCase()} dans chaque groupe{:else} : choisis un critère dans « Puis par » pour classer dans chaque groupe{/if}.
+						{#if estGroupe(critereActif)}Groupes par {critereActif.label.toLowerCase()}{:else}Tranches de {critereActif.label.toLowerCase()}{critere === 'published_at' ? ' (par mois)' : ''}{/if}{#if critere2Actif && critere2 !== critere}, puis classées par {critere2Actif.label.toLowerCase()} dans chaque {estGroupe(critereActif) ? 'groupe' : 'tranche'}{:else} : choisis un critère dans « Puis par » pour classer dans chaque groupe{/if}.
 					{:else}
-						{critereActif.label} : {critereActif.aide}.{#if critere2Actif && critere2 !== critere}{' '}En cas d’égalité exacte seulement : {critere2Actif.label.toLowerCase()} (pour « vues puis likes », choisis « Vues (tranches) » en 1er : les likes classent alors chaque tranche).{/if}
+						{critereActif.label} : {critereActif.aide}. Choisis un critère dans « Puis par » pour regrouper par tranches et classer à l’intérieur.
 					{/if}
 				</p>
 
