@@ -54,6 +54,10 @@ export type Compte = {
 	/** Un compte que je suis (pour faire le ménage) */
 	est_suivi?: boolean | null;
 	est_liker: boolean;
+	/** Lien de la photo de profil (renouvelé à chaque collecte, expire en quelques jours) */
+	photo?: string | null;
+	/** false : le compte n'a pas de photo (avatar gris d'Instagram) */
+	a_une_photo?: boolean | null;
 	reels_likes: number;
 	abonnes: number | null;
 	abonnements: number | null;
