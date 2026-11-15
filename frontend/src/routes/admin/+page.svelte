@@ -384,6 +384,20 @@
 					{#each comptesFiltres.slice(0, affiches) as c (c.compte_id)}
 						<li class="card">
 							<div class="tete">
+								<a class="vignette rond" href={c.url} target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true"
+									title={c.a_une_photo === false ? 'Pas de photo de profil' : undefined}>
+									{#if c.photo && !cassees.has('c:' + c.compte_id)}
+										<img
+											src={c.photo}
+											alt=""
+											loading="lazy"
+											referrerpolicy="no-referrer"
+											onerror={() => (cassees = new Set(cassees).add('c:' + c.compte_id))}
+										/>
+									{:else}
+										<span>{c.a_une_photo === false ? '?' : c.nom_compte.slice(0, 1).toUpperCase()}</span>
+									{/if}
+								</a>
 								<span class="pct {classeNiveau(c.niveau)}">{c.pct_faux} %</span>
 								<a href={c.url} target="_blank" rel="noopener noreferrer">@{c.nom_compte}</a>
 								<span class="soft petit">{[c.est_suivi && 'je le suis', c.est_abonne && 'me suit', c.est_liker && `${c.reels_likes} réel${c.reels_likes > 1 ? 's' : ''} liké${c.reels_likes > 1 ? 's' : ''}`].filter(Boolean).join(' · ')}</span>
@@ -476,6 +490,7 @@
 		text-decoration: none;
 	}
 	.vignette img { width: 100%; height: 100%; object-fit: cover; display: block; }
+	.vignette.rond { width: 44px; height: 44px; border-radius: 50%; }
 	.description {
 		margin: 0.5rem 0 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
 		overflow: hidden; overflow-wrap: anywhere;
