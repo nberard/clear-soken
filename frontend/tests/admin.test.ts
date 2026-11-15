@@ -104,3 +104,21 @@ test('recherche dans la légende : tous les mots, sans accents ni casse', async 
 	assert.deepEqual(rechercherPublications(liste, 'surf crepes').map((p) => p.publication_id), []);
 	assert.equal(rechercherPublications(liste, '  ').length, 3);
 });
+
+test('tri sur deux niveaux, chacun croissant ou décroissant ; valeurs absentes à la fin', async () => {
+	const { top, valeurCritere } = await import('../src/lib/admin.ts');
+	const liste = [
+		pub('1', 'video_courte', { likes: 100, vues: 500, published_at: '2026-01-01T00:00:00Z' }),
+		pub('2', 'video_courte', { likes: 300, vues: 900, published_at: '2026-03-01T00:00:00Z' }),
+		pub('3', 'video_courte', { likes: 100, vues: 800, published_at: '2026-02-01T00:00:00Z' }),
+		pub('4', 'video_courte', { likes: null, vues: 50, published_at: null })
+	];
+	const ids = (l: Publication[]) => l.map((p) => p.publication_id);
+	// likes décroissants, égalité 1/3 départagée par les vues décroissantes
+	assert.deepEqual(ids(top(liste, [{ critere: 'likes', sens: 'desc' }, { critere: 'vues', sens: 'desc' }], 10)), ['2', '3', '1', '4']);
+	// likes croissants, puis vues croissantes : sans likes toujours à la fin
+	assert.deepEqual(ids(top(liste, [{ critere: 'likes', sens: 'asc' }, { critere: 'vues', sens: 'asc' }], 10)), ['1', '3', '2', '4']);
+	// date : plus récente d'abord, sans date à la fin
+	assert.deepEqual(ids(top(liste, [{ critere: 'published_at', sens: 'desc' }], 10)), ['2', '3', '1', '4']);
+	assert.match(valeurCritere(liste[0], 'published_at'), /2026/);
+});

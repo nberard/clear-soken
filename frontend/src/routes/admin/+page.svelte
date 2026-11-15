@@ -21,6 +21,8 @@
 		type Compte,
 		type Critere,
 		type FiltreComptes,
+		type Sens,
+		type Tri,
 		type Pays,
 		type Publication,
 		type Qualite
@@ -44,6 +46,16 @@
 	let luLe: number | null = $state(null);
 
 	let critere: Critere = $state('likes_authentiques_estimes');
+	let sens: Sens = $state('desc');
+	/** 2e niveau de tri : départage les égalités du 1er ('' = aucun) */
+	let critere2: Critere | '' = $state('');
+	let sens2: Sens = $state('desc');
+	const tris = $derived<Tri[]>([
+		{ critere, sens },
+		...(critere2 && critere2 !== critere ? [{ critere: critere2, sens: sens2 }] : [])
+	]);
+	const critere2Actif = $derived(CRITERES.find((c) => c.id === critere2));
+	const libelleSens = (s: Sens) => (s === 'desc' ? 'Décroissant' : 'Croissant');
 	let combien = $state(10);
 	let reelsSeulement = $state(true);
 	let achetesSeulement = $state(false);
@@ -56,7 +68,7 @@
 	let affiches = $state(50);
 
 	const classement = $derived(
-		top(rechercherPublications(publications, recherche), critere, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat)
+		top(rechercherPublications(publications, recherche), tris, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat)
 	);
 	const critereActif = $derived(CRITERES.find((c) => c.id === critere)!);
 	const comptesFiltres = $derived(filtrerComptes(comptes, filtre));
@@ -197,9 +209,24 @@
 				<div class="reglages">
 					<label>
 						Classer par
-						<select bind:value={critere}>
-							{#each CRITERES as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
-						</select>
+						<span class="tri">
+							<select bind:value={critere}>
+								{#each CRITERES as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+							</select>
+							<button type="button" class="sens" title={libelleSens(sens)} aria-label={libelleSens(sens)}
+								onclick={() => (sens = sens === 'desc' ? 'asc' : 'desc')}>{sens === 'desc' ? '↓' : '↑'}</button>
+						</span>
+					</label>
+					<label>
+						Puis par
+						<span class="tri">
+							<select bind:value={critere2}>
+								<option value="">—</option>
+								{#each CRITERES as c (c.id)}{#if c.id !== critere}<option value={c.id}>{c.label}</option>{/if}{/each}
+							</select>
+							<button type="button" class="sens" title={libelleSens(sens2)} aria-label={libelleSens(sens2)} disabled={!critere2}
+								onclick={() => (sens2 = sens2 === 'desc' ? 'asc' : 'desc')}>{sens2 === 'desc' ? '↓' : '↑'}</button>
+						</span>
 					</label>
 					<label>
 						Combien
@@ -219,7 +246,9 @@
 					Chercher dans les titres et descriptions
 					<input type="search" bind:value={recherche} placeholder="surf, #recette…" autocapitalize="none" />
 				</label>
-				<p class="soft petit">{critereActif.label} : {critereActif.aide}.</p>
+				<p class="soft petit">
+					{critereActif.label} : {critereActif.aide}.{#if critere2Actif && critere2 !== critere}{' '}Égalités départagées par {critere2Actif.label.toLowerCase()}.{/if}
+				</p>
 
 				{#if erreurs.publications}
 					<p class="erreur">Publications indisponibles : {erreurs.publications}</p>
@@ -255,7 +284,12 @@
 									{#if p.likes_superieurs_aux_vues}<span class="badge achat" title="Plus de likes que de vues">Likes achetés</span>{/if}
 									{#if p.periode_achat}<span class="badge periode" title="Publiée pendant une période d’achat de likes ou d’abonnés">Période d’achat</span>{/if}
 								</div>
-								<strong class="valeur">{valeurCritere(p, critere)}</strong>
+								<span class="valeurs">
+									<strong class="valeur">{valeurCritere(p, critere)}</strong>
+									{#if critere2Actif && critere2 !== critere}
+										<span class="soft petit">{critere2Actif.label} : {valeurCritere(p, critere2Actif.id)}</span>
+									{/if}
+								</span>
 							</div>
 							{#if description(p)}<p class="soft petit description">{description(p)}</p>{/if}
 
@@ -448,6 +482,14 @@
 	}
 	.recherche { margin: 0.2rem 0 0.5rem; }
 	.valeur { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+	.valeurs { display: grid; justify-items: end; text-align: right; }
+	.tri { display: flex; gap: 0.3rem; }
+	.tri select { flex: 1; }
+	.sens {
+		flex: 0 0 auto; width: 2.4rem; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+		border-radius: var(--radius-sm); font-weight: 800;
+	}
+	.sens:disabled { opacity: 0.4; cursor: default; }
 	.badge { font-size: 0.72rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 700; }
 	.badge.pub { background: color-mix(in srgb, var(--paye) 20%, transparent); color: var(--paye); }
 	.badge.achat { background: color-mix(in srgb, var(--faux) 18%, transparent); color: var(--faux); }
