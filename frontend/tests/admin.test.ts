@@ -30,7 +30,8 @@ const pubs = [
 ];
 
 test('top des réels : tri décroissant, valeurs absentes à la fin, images exclues', () => {
-	assert.deepEqual(top(pubs, 'likes_authentiques_estimes', 10).map((p) => p.publication_id), ['b', 'a', 'c', 'e']);
+	// c et e sans estimation des faux : classés sur leurs likes totaux (100), devant a (80 authentiques)
+	assert.deepEqual(top(pubs, 'likes_authentiques_estimes', 10).map((p) => p.publication_id), ['b', 'c', 'e', 'a']);
 	assert.deepEqual(top(pubs, 'likes_authentiques_estimes', 1, false).map((p) => p.publication_id), ['d']);
 	assert.deepEqual(top(pubs, 'part_likes_faux', 2).map((p) => p.publication_id), ['a', 'b']);
 	assert.equal(top(pubs, 'likes_payes', 1)[0].publication_id, 'e');
@@ -121,4 +122,15 @@ test('tri sur deux niveaux, chacun croissant ou décroissant ; valeurs absentes 
 	// date : plus récente d'abord, sans date à la fin
 	assert.deepEqual(ids(top(liste, [{ critere: 'published_at', sens: 'desc' }], 10)), ['2', '3', '1', '4']);
 	assert.match(valeurCritere(liste[0], 'published_at'), /2026/);
+});
+
+test('faux likes : fourchette affichée, et sans estimation fiable on classe sur les likes totaux', async () => {
+	const { fourchette, top, valeurCritere } = await import('../src/lib/admin.ts');
+	const petit = pub('p', 'video_courte', { likes: 19751, likes_authentiques_estimes: null, part_likes_faux_bas: 0.04, part_likes_faux_haut: 0.426 });
+	const fiable = pub('f', 'video_courte', { likes: 20000, likes_authentiques_estimes: 15000 });
+	assert.equal(fourchette(petit), '4 à 43 %');
+	assert.equal(fourchette(fiable), '');
+	assert.equal(valeurCritere(petit, 'likes_authentiques_estimes'), (19751).toLocaleString('fr-FR'));
+	// 19 751 likes sans estimation passent devant 15 000 likes authentiques estimés
+	assert.deepEqual(top([fiable, petit], 'likes_authentiques_estimes', 10).map((p) => p.publication_id), ['p', 'f']);
 });

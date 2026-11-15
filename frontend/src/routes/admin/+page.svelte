@@ -10,6 +10,7 @@
 		date,
 		description,
 		filtrerComptes,
+		fourchette,
 		nombre,
 		nomPays,
 		pct,
@@ -304,15 +305,30 @@
 
 							{#if p.likes_faux_estimes != null}
 								<div class="barre-legende">
-									<span>{pct(p.part_likes_faux)} de faux{#if p.estimation === 'likes au-delà des vues'}{' · au-delà des vues'}{/if}</span>
+									<span>{pct(p.part_likes_faux)} de faux{#if p.estimation === 'likes au-delà des vues'}{' · au-delà des vues'}{:else if p.estimation === 'ratio likes/vues'}{' · ratio likes/vues'}{/if}</span>
 									<span><i class="pastille vrai"></i>authentiques {nombre(p.likes_authentiques_estimes)} · <i class="pastille faux"></i>faux {nombre(p.likes_faux_estimes)}</span>
 								</div>
 								<div class="barre" aria-hidden="true">
 									<span class="vrai" style:width={largeur(p.likes_authentiques_estimes ?? 0, p.likes ?? 0)}></span>
 									<span class="faux" style:width={largeur(p.likes_faux_estimes, p.likes ?? 0)}></span>
 								</div>
+							{:else if p.likers_analyses > 0}
+								<p class="soft petit">
+									<span class="badge faible">Échantillon trop petit</span>
+									{nombre(p.likers_analyses)} liker{p.likers_analyses > 1 ? 's' : ''} analysé{p.likers_analyses > 1 ? 's' : ''} sur {nombre(p.likes)} likes (il en faut 30) : de {fourchette(p) || '?'} de faux, impossible à trancher.
+								</p>
 							{:else}
 								<p class="soft petit">Likers pas encore analysés, et pas plus de likes que de vues.</p>
+							{/if}
+							{#if p.likes_faux_estimes != null && p.estimation !== 'likers analysés' && fourchette(p)}
+								<p class="soft petit">Likers analysés ({nombre(p.likers_analyses)}) : de {fourchette(p)} de faux, trop peu pour compter.</p>
+							{:else if p.likes_faux_estimes != null && p.estimation === 'likers analysés' && fourchette(p)}
+								<p class="soft petit">Fourchette à 95 % : {fourchette(p)} de faux (sur {nombre(p.likers_analyses)} likers analysés).</p>
+							{/if}
+							{#if p.periode_achat && p.ratio_likes_vues != null && p.ratio_reference != null}
+								<p class="soft petit">
+									Likes / vues : {pct(p.ratio_likes_vues, 1)} · réels hors achat : {pct(p.ratio_reference, 1)}{#if p.likes_au_dela_du_ratio}{' · '}<strong>{nombre(p.likes_au_dela_du_ratio)} likes en trop</strong>{/if}
+								</p>
 							{/if}
 
 							<dl>
@@ -509,6 +525,8 @@
 	.badge.pub { background: color-mix(in srgb, var(--paye) 20%, transparent); color: var(--paye); }
 	.badge.achat { background: color-mix(in srgb, var(--faux) 18%, transparent); color: var(--faux); }
 	.badge.periode { background: color-mix(in srgb, var(--doute) 20%, transparent); color: var(--doute); }
+	.classement li > p.soft { margin-top: 0.5rem; }
+	.badge.faible { background: var(--surface-soft); color: var(--text-soft); margin-right: 0.3rem; }
 
 	.barre-legende { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-soft); margin-top: 0.7rem; }
 	.barre { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--surface-soft); margin-top: 0.25rem; }
