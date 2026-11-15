@@ -109,10 +109,25 @@ export const CRITERES = [
 	{ id: 'engagement_authentique', label: 'Engagement authentique', aide: 'sans les commentaires suspects' },
 	{ id: 'published_at', label: 'Date de publication', aide: 'jour de mise en ligne' },
 	// Critères qui forment des groupes : utiles en 1er niveau, le 2e classe à l'intérieur de chaque groupe
+	{ id: 'tranche_vues', label: 'Vues (tranches)', aide: 'regroupe par audience : moins de 1 k, 1 k – 10 k, 10 k – 100 k…', groupe: true },
+	{ id: 'tranche_likes', label: 'Likes (tranches)', aide: 'regroupe par nombre de likes : moins de 1 k, 1 k – 10 k…', groupe: true },
 	{ id: 'mois', label: 'Mois de publication', aide: 'regroupe par mois', groupe: true },
 	{ id: 'periode_achat', label: 'Période d’achat', aide: 'publiées pendant une période d’achat d’un côté, le reste de l’autre', groupe: true },
 	{ id: 'boosts', label: 'Boosts', aide: 'nombre de boosts payés (0 = pas boostée)', groupe: true }
-] as const satisfies readonly { id: keyof Publication | 'mois'; label: string; aide: string; groupe?: boolean }[];
+] as const satisfies readonly {
+	id: keyof Publication | 'mois' | 'tranche_vues' | 'tranche_likes';
+	label: string;
+	aide: string;
+	groupe?: boolean;
+}[];
+
+const TRANCHES = ['moins de 1 k', '1 k – 10 k', '10 k – 100 k', '100 k – 1 M', '1 M et plus'];
+
+/** Tranche d'un nombre : 0 = moins de 1 000, 1 = 1 000 à 9 999… jusqu'à 4 = un million et plus */
+export function tranche(n: number | null | undefined): number | null {
+	if (n == null) return null;
+	return n < 1000 ? 0 : Math.min(TRANCHES.length - 1, Math.floor(Math.log10(n)) - 2);
+}
 
 export type Critere = (typeof CRITERES)[number]['id'];
 
@@ -130,6 +145,8 @@ export function valeur(p: Publication, c: Critere): number | null {
 		const d = p.published_at ? new Date(p.published_at) : null;
 		return d && !Number.isNaN(d.getTime()) ? d.getFullYear() * 12 + d.getMonth() : null;
 	}
+	if (c === 'tranche_vues') return tranche(p.vues);
+	if (c === 'tranche_likes') return tranche(p.likes);
 	if (c === 'periode_achat') return p.periode_achat == null ? null : Number(p.periode_achat);
 	if (c === 'published_at') {
 		const t = p.published_at ? Date.parse(p.published_at) : NaN;
@@ -282,6 +299,10 @@ export function valeurCritere(p: Publication, c: Critere): string {
 		return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '–';
 	}
 	if (c === 'periode_achat') return p.periode_achat == null ? '–' : p.periode_achat ? 'oui' : 'non';
+	if (c === 'tranche_vues' || c === 'tranche_likes') {
+		const t = valeur(p, c);
+		return t == null ? '–' : `${TRANCHES[t]} ${c === 'tranche_vues' ? 'vues' : 'likes'}`;
+	}
 	if (c === 'likes_authentiques_estimes' && p.likes_authentiques_estimes == null) return nombre(p.likes);
 	return c === 'part_likes_faux' || c === 'engagement_authentique' ? pct(p[c], 1) : nombre(p[c]);
 }

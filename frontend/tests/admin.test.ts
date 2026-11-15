@@ -148,3 +148,17 @@ test('tri par groupe : mois puis likes, le 2e niveau classe à l’intérieur de
 	const achat = [pub('a', 'video_courte', { periode_achat: false, likes: 1 }), pub('b', 'video_courte', { periode_achat: true, likes: 2 })];
 	assert.deepEqual(top(achat, [{ critere: 'periode_achat', sens: 'asc' }], 10).map((p) => p.publication_id), ['a', 'b']);
 });
+
+test('tranches de vues : on groupe par audience, puis on classe par likes dans chaque tranche', async () => {
+	const { top, tranche, valeurCritere } = await import('../src/lib/admin.ts');
+	assert.deepEqual([999, 1000, 70668, 100000, 5_000_000].map(tranche), [0, 1, 2, 3, 4]);
+	const liste = [
+		pub('a', 'video_courte', { vues: 70668, likes: 1133 }),
+		pub('b', 'video_courte', { vues: 12000, likes: 2000 }),
+		pub('c', 'video_courte', { vues: 1056, likes: 58 }),
+		pub('d', 'video_courte', { vues: 3000, likes: 300 })
+	];
+	const ids = top(liste, [{ critere: 'tranche_vues', sens: 'desc' }, { critere: 'likes', sens: 'desc' }], 10).map((p) => p.publication_id);
+	assert.deepEqual(ids, ['b', 'a', 'd', 'c']);  // 10 k – 100 k : b (2 000 likes) devant a (1 133) ; puis 1 k – 10 k
+	assert.equal(valeurCritere(liste[0], 'tranche_vues'), '10 k – 100 k vues');
+});
