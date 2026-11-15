@@ -68,9 +68,10 @@
 	let filtre: FiltreComptes = $state({ niveau: 'probablement faux', population: 'tous', recherche: '' });
 	let affiches = $state(50);
 
-	const classement = $derived(
-		top(rechercherPublications(publications, recherche), tris, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat)
+	const tousClasses = $derived(
+		top(rechercherPublications(publications, recherche), tris, Infinity, reelsSeulement, achetesSeulement, sansPeriodesAchat)
 	);
+	const classement = $derived(tousClasses.slice(0, combien));
 	const critereActif = $derived(CRITERES.find((c) => c.id === critere)!);
 	const estGroupe = (c: object | undefined) => !!c && 'groupe' in c && !!c.groupe;
 	/** 1er niveau en groupes (mois, période d'achat, boosts) : titres de groupe entre les cartes */
@@ -107,7 +108,38 @@
 		return json.lignes;
 	}
 
+	/** Indicateur d'activité : chargement des données, mise à jour de la liste après un changement de tri ou de filtre */
+	let chargement = $state(false);
+	let calcul = $state(false);
+	let minuterie: ReturnType<typeof setTimeout> | undefined;
+	let premierPassage = true;
+	$effect(() => {
+		// relu à chaque changement de tri, de filtre ou de recherche
+		void [critere, sens, critere2, sens2, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat, recherche,
+			filtre.niveau, filtre.population, filtre.recherche, affiches];
+		if (premierPassage) {
+			premierPassage = false;
+			return;
+		}
+		calcul = true;
+		clearTimeout(minuterie);
+		// la liste se recalcule tout de suite ; le pictogramme reste un instant pour qu'on voie que ça a bougé
+		minuterie = setTimeout(() => (calcul = false), 400);
+	});
+	const erreurOnglet = $derived(
+		onglet === 'reels' ? erreurs.publications : onglet === 'comptes' ? (erreurs.comptes ?? erreurs.qualite) : erreurs.pays
+	);
+
 	async function toutCharger() {
+		chargement = true;
+		try {
+			await chargerVues();
+		} finally {
+			chargement = false;
+		}
+	}
+
+	async function chargerVues() {
 		erreurs = {};
 		const vues = [
 			['publications', (l: Publication[]) => (publications = l)],
@@ -218,6 +250,24 @@
 			<button role="tab" aria-selected={onglet === 'reels'} onclick={() => (onglet = 'reels')}>Top réels</button>
 			<button role="tab" aria-selected={onglet === 'comptes'} onclick={() => (onglet = 'comptes')}>Faux comptes</button>
 			<button role="tab" aria-selected={onglet === 'audience'} onclick={() => (onglet = 'audience')}>Provenance</button>
+		</div>
+
+		<div class="barre-statut" role="status" aria-live="polite">
+			{#if chargement}
+				<span class="roue" aria-hidden="true"></span><span>Chargement des données…</span>
+			{:else if erreurOnglet}
+				<span class="pic erreur" aria-hidden="true">⚠</span><span class="erreur">Erreur : {erreurOnglet}</span>
+			{:else if calcul}
+				<span class="roue" aria-hidden="true"></span><span>Mise à jour…</span>
+			{:else}
+				<span class="pic ok" aria-hidden="true">✓</span>
+				<span>
+					{#if onglet === 'reels'}{nombre(classement.length)} affichée{classement.length > 1 ? 's' : ''} sur {nombre(tousClasses.length)}
+					{:else if onglet === 'comptes'}{nombre(comptesFiltres.length)} compte{comptesFiltres.length > 1 ? 's' : ''}
+					{:else}{nombre(pays.length)} pays{/if}
+				</span>
+			{/if}
+			<button class="lien recharger" onclick={toutCharger} disabled={chargement}>Recharger</button>
 		</div>
 
 		{#if onglet === 'reels'}
@@ -593,4 +643,19 @@
 	.pays .chiffre { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
 	.pays .nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.pied { margin-top: 1.5rem; text-align: center; }
+
+	.barre-statut {
+		position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 0.45rem;
+		padding: 0.45rem 0.2rem; margin: -0.4rem 0 0.6rem; background: var(--bg); font-size: 0.85rem; color: var(--text-soft);
+	}
+	.barre-statut .recharger { margin-left: auto; font-size: 0.85rem; }
+	.barre-statut .recharger:disabled { opacity: 0.5; cursor: default; }
+	.pic { font-weight: 800; width: 1rem; text-align: center; }
+	.pic.ok { color: var(--vrai); }
+	.roue {
+		width: 0.9rem; height: 0.9rem; border-radius: 50%; border: 2px solid var(--border);
+		border-top-color: var(--primary); animation: tourne 0.7s linear infinite; flex: 0 0 auto;
+	}
+	@keyframes tourne { to { transform: rotate(360deg); } }
+	@media (prefers-reduced-motion: reduce) { .roue { animation-duration: 2s; } }
 </style>
