@@ -7,6 +7,10 @@ export type Publication = {
 	published_at: string | null;
 	format: string;
 	libelle_format: string;
+	/** Légende de la publication (titre : sa première ligne) */
+	texte?: string | null;
+	/** Lien d'aperçu signé par Instagram (expire au bout de quelques jours, renouvelé à chaque collecte) */
+	miniature?: string | null;
 	vues: number | null;
 	likes: number | null;
 	commentaires: number | null;
@@ -83,7 +87,12 @@ export const CRITERES = [
 	{ id: 'vues_organiques', label: 'Vues organiques', aide: 'vues moins vues payées' },
 	{ id: 'vues_payees', label: 'Vues payées', aide: 'apportées par les boosts' },
 	{ id: 'likes', label: 'Likes (total)', aide: 'comme dans l’appli Instagram' },
-	{ id: 'engagement_authentique', label: 'Engagement authentique', aide: 'sans les commentaires suspects' }
+	{ id: 'vues', label: 'Vues (total)', aide: 'comme dans l’appli Instagram' },
+	{ id: 'commentaires', label: 'Commentaires', aide: 'nombre annoncé par Instagram' },
+	{ id: 'partages', label: 'Partages', aide: 'envois de la publication' },
+	{ id: 'enregistrements', label: 'Enregistrements', aide: 'ajouts aux collections' },
+	{ id: 'engagement_authentique', label: 'Engagement authentique', aide: 'sans les commentaires suspects' },
+	{ id: 'published_at', label: 'Date de publication', aide: 'jour de mise en ligne' }
 ] as const satisfies readonly { id: keyof Publication; label: string; aide: string }[];
 
 export type Critere = (typeof CRITERES)[number]['id'];
@@ -92,27 +101,77 @@ export function estReel(p: Publication): boolean {
 	return p.format === 'video_courte';
 }
 
-/** Top `n` des publications selon un critère, du plus grand au plus petit, valeurs absentes à la fin */
+/** Un niveau de tri : décroissant (du plus grand au plus petit, ou du plus récent) ou croissant */
+export type Sens = 'desc' | 'asc';
+export type Tri = { critere: Critere; sens: Sens };
+
+/** Valeur numérique d'un critère (la date devient un horodatage) ; null si absente */
+export function valeur(p: Publication, c: Critere): number | null {
+	if (c === 'published_at') {
+		const t = p.published_at ? Date.parse(p.published_at) : NaN;
+		return Number.isNaN(t) ? null : t;
+	}
+	return p[c] ?? null;
+}
+
+/** Tri sur plusieurs niveaux : le 2e départage les égalités du 1er. Valeurs absentes toujours à la fin. */
+export function trier(pubs: Publication[], tris: Tri[]): Publication[] {
+	return pubs.toSorted((a, b) => {
+		for (const { critere, sens } of tris) {
+			const va = valeur(a, critere);
+			const vb = valeur(b, critere);
+			if (va == null && vb == null) continue;
+			if (va == null) return 1;
+			if (vb == null) return -1;
+			if (va !== vb) return sens === 'desc' ? vb - va : va - vb;
+		}
+		return 0;
+	});
+}
+
+/** Top `n` des publications selon un critère (décroissant) ou plusieurs niveaux de tri, valeurs absentes à la fin */
 export function top(
 	pubs: Publication[],
-	critere: Critere,
+	tri: Critere | Tri[],
 	n: number,
 	reelsSeulement = true,
 	achetesSeulement = false,
 	sansPeriodesAchat = false
 ): Publication[] {
-	return pubs
-		.filter((p) => !reelsSeulement || estReel(p))
-		.filter((p) => !achetesSeulement || p.likes_superieurs_aux_vues)
-		.filter((p) => !sansPeriodesAchat || !p.periode_achat)
-		.toSorted((a, b) => {
-			const va = a[critere];
-			const vb = b[critere];
-			if (va == null) return vb == null ? 0 : 1;
-			if (vb == null) return -1;
-			return vb - va;
-		})
-		.slice(0, n);
+	const tris: Tri[] = typeof tri === 'string' ? [{ critere: tri, sens: 'desc' }] : tri;
+	return trier(
+		pubs
+			.filter((p) => !reelsSeulement || estReel(p))
+			.filter((p) => !achetesSeulement || p.likes_superieurs_aux_vues)
+			.filter((p) => !sansPeriodesAchat || !p.periode_achat),
+		tris
+	).slice(0, n);
+}
+
+const sansAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** Titre d'une publication : première ligne non vide de sa légende ; sinon « Réel du 3 oct. 2026 » */
+export function titre(p: Publication, max = 90): string {
+	const ligne = (p.texte ?? '').split('\n').map((l) => l.trim()).find(Boolean);
+	if (!ligne) return `${p.libelle_format} du ${date(p.published_at)}`;
+	return ligne.length > max ? ligne.slice(0, max - 1).trimEnd() + '…' : ligne;
+}
+
+/** Description : la légende sans sa première ligne (vide si la légende tient sur une ligne) */
+export function description(p: Publication): string {
+	const lignes = (p.texte ?? '').split('\n').map((l) => l.trim());
+	const i = lignes.findIndex(Boolean);
+	return i < 0 ? '' : lignes.slice(i + 1).filter(Boolean).join(' ');
+}
+
+/** Publications dont la légende (titre et description) contient tous les mots cherchés, sans accents ni casse */
+export function rechercherPublications(pubs: Publication[], recherche: string): Publication[] {
+	const mots = sansAccents(recherche).split(/\s+/).filter(Boolean);
+	if (!mots.length) return pubs;
+	return pubs.filter((p) => {
+		const texte = sansAccents(p.texte ?? '');
+		return mots.every((m) => texte.includes(m));
+	});
 }
 
 export type FiltreComptes = {
@@ -184,5 +243,6 @@ export function nomPays(code: string): string {
 
 /** Valeur d'un critère pour l'affichage (pourcentage ou nombre) */
 export function valeurCritere(p: Publication, c: Critere): string {
+	if (c === 'published_at') return date(p.published_at);
 	return c === 'part_likes_faux' || c === 'engagement_authentique' ? pct(p[c], 1) : nombre(p[c]);
 }
