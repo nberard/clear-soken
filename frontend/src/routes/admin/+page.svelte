@@ -321,7 +321,7 @@
 					{#if parGroupes}
 						Groupes par {critereActif.label.toLowerCase()}{#if critere2Actif}, classés par {critere2Actif.label.toLowerCase()} dans chaque groupe{:else} : choisis un critère dans « Puis par » pour classer dans chaque groupe{/if}.
 					{:else}
-						{critereActif.label} : {critereActif.aide}.{#if critere2Actif && critere2 !== critere}{' '}En cas d’égalité exacte seulement : {critere2Actif.label.toLowerCase()} (pour classer dans des groupes, choisis un mois ou une période d’achat en 1er).{/if}
+						{critereActif.label} : {critereActif.aide}.{#if critere2Actif && critere2 !== critere}{' '}En cas d’égalité exacte seulement : {critere2Actif.label.toLowerCase()} (pour « vues puis likes », choisis « Vues (tranches) » en 1er : les likes classent alors chaque tranche).{/if}
 					{/if}
 				</p>
 
@@ -588,9 +588,10 @@
 	.recherche { margin: 0.2rem 0 0.5rem; }
 	.valeur { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 	.classement .groupe {
-		font-weight: 800; font-size: 0.95rem; color: var(--text-soft); text-transform: capitalize;
+		font-weight: 800; font-size: 0.95rem; color: var(--text-soft);
 		margin: 0.6rem 0 -0.2rem; padding-left: 0.2rem;
 	}
+	.classement .groupe::first-letter { text-transform: uppercase; }
 	.tri { display: flex; gap: 0.3rem; }
 	.tri select { flex: 1; }
 	.sens {
