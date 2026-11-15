@@ -7,6 +7,10 @@ export type Publication = {
 	published_at: string | null;
 	format: string;
 	libelle_format: string;
+	/** Légende de la publication (titre : sa première ligne) */
+	texte?: string | null;
+	/** Lien d'aperçu signé par Instagram (expire au bout de quelques jours, renouvelé à chaque collecte) */
+	miniature?: string | null;
 	vues: number | null;
 	likes: number | null;
 	commentaires: number | null;
@@ -113,6 +117,32 @@ export function top(
 			return vb - va;
 		})
 		.slice(0, n);
+}
+
+const sansAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** Titre d'une publication : première ligne non vide de sa légende ; sinon « Réel du 3 oct. 2026 » */
+export function titre(p: Publication, max = 90): string {
+	const ligne = (p.texte ?? '').split('\n').map((l) => l.trim()).find(Boolean);
+	if (!ligne) return `${p.libelle_format} du ${date(p.published_at)}`;
+	return ligne.length > max ? ligne.slice(0, max - 1).trimEnd() + '…' : ligne;
+}
+
+/** Description : la légende sans sa première ligne (vide si la légende tient sur une ligne) */
+export function description(p: Publication): string {
+	const lignes = (p.texte ?? '').split('\n').map((l) => l.trim());
+	const i = lignes.findIndex(Boolean);
+	return i < 0 ? '' : lignes.slice(i + 1).filter(Boolean).join(' ');
+}
+
+/** Publications dont la légende (titre et description) contient tous les mots cherchés, sans accents ni casse */
+export function rechercherPublications(pubs: Publication[], recherche: string): Publication[] {
+	const mots = sansAccents(recherche).split(/\s+/).filter(Boolean);
+	if (!mots.length) return pubs;
+	return pubs.filter((p) => {
+		const texte = sansAccents(p.texte ?? '');
+		return mots.every((m) => texte.includes(m));
+	});
 }
 
 export type FiltreComptes = {

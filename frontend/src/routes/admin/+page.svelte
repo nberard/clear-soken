@@ -8,11 +8,14 @@
 		argent,
 		compterNiveaux,
 		date,
+		description,
 		filtrerComptes,
 		nombre,
 		nomPays,
 		pct,
+		rechercherPublications,
 		resumeAudience,
+		titre,
 		top,
 		valeurCritere,
 		type Compte,
@@ -45,11 +48,16 @@
 	let reelsSeulement = $state(true);
 	let achetesSeulement = $state(false);
 	let sansPeriodesAchat = $state(false);
+	let recherche = $state('');
+	/** Miniatures qui n'ont pas chargé (lien Instagram expiré) : on montre un aperçu neutre */
+	let cassees = $state(new Set<string>());
 	const aDesPeriodes = $derived(publications.some((p) => p.periode_achat));
 	let filtre: FiltreComptes = $state({ niveau: 'probablement faux', population: 'tous', recherche: '' });
 	let affiches = $state(50);
 
-	const classement = $derived(top(publications, critere, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat));
+	const classement = $derived(
+		top(rechercherPublications(publications, recherche), critere, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat)
+	);
 	const critereActif = $derived(CRITERES.find((c) => c.id === critere)!);
 	const comptesFiltres = $derived(filtrerComptes(comptes, filtre));
 	const niveaux = $derived(compterNiveaux(comptes));
@@ -207,12 +215,18 @@
 						<label class="case"><input type="checkbox" bind:checked={sansPeriodesAchat} /> Sans les périodes d’achat</label>
 					{/if}
 				</div>
+				<label class="recherche">
+					Chercher dans les titres et descriptions
+					<input type="search" bind:value={recherche} placeholder="surf, #recette…" autocapitalize="none" />
+				</label>
 				<p class="soft petit">{critereActif.label} : {critereActif.aide}.</p>
 
 				{#if erreurs.publications}
 					<p class="erreur">Publications indisponibles : {erreurs.publications}</p>
 				{:else if !classement.length}
-					<p class="card soft">Aucune publication pour l’instant.</p>
+					<p class="card soft">
+						{recherche.trim() ? `Aucune publication ne correspond à « ${recherche.trim()} ».` : 'Aucune publication pour l’instant.'}
+					</p>
 				{/if}
 
 				<ol class="classement">
@@ -220,15 +234,30 @@
 						<li class="card">
 							<div class="tete">
 								<span class="rang">{i + 1}</span>
+								<a class="vignette" href={p.url ?? undefined} target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">
+									{#if p.miniature && !cassees.has(p.publication_id)}
+										<img
+											src={p.miniature}
+											alt=""
+											loading="lazy"
+											referrerpolicy="no-referrer"
+											onerror={() => (cassees = new Set(cassees).add(p.publication_id))}
+										/>
+									{:else}
+										<span>{p.libelle_format.slice(0, 1)}</span>
+									{/if}
+								</a>
 								<div class="titre">
-									{#if p.url}<a href={p.url} target="_blank" rel="noopener noreferrer">{p.libelle_format} du {date(p.published_at)}</a>
-									{:else}{p.libelle_format} du {date(p.published_at)}{/if}
+									{#if p.url}<a href={p.url} target="_blank" rel="noopener noreferrer">{titre(p)}</a>
+									{:else}<span class="nom">{titre(p)}</span>{/if}
+									{#if p.texte?.trim()}<span class="soft petit quand">{p.libelle_format} · {date(p.published_at)}</span>{/if}
 									{#if p.boosts}<span class="badge pub">Boosté ×{p.boosts}</span>{/if}
 									{#if p.likes_superieurs_aux_vues}<span class="badge achat" title="Plus de likes que de vues">Likes achetés</span>{/if}
 									{#if p.periode_achat}<span class="badge periode" title="Publiée pendant une période d’achat de likes ou d’abonnés">Période d’achat</span>{/if}
 								</div>
 								<strong class="valeur">{valeurCritere(p, critere)}</strong>
 							</div>
+							{#if description(p)}<p class="soft petit description">{description(p)}</p>{/if}
 
 							<div class="barre-legende">
 								<span>Likes {nombre(p.likes)}</span>
@@ -405,7 +434,19 @@
 	.tete { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 	.rang { font-weight: 800; color: var(--text-soft); width: 1.6rem; text-align: center; }
 	.titre { flex: 1; min-width: 0; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
-	.titre a, .comptes a { color: var(--text); font-weight: 700; }
+	.titre a, .titre .nom, .comptes a { color: var(--text); font-weight: 700; }
+	.titre .quand { flex-basis: 100%; }
+	.vignette {
+		flex: 0 0 auto; width: 56px; height: 56px; border-radius: var(--radius-sm); overflow: hidden;
+		background: var(--surface-soft); display: grid; place-items: center; color: var(--text-soft); font-weight: 800;
+		text-decoration: none;
+	}
+	.vignette img { width: 100%; height: 100%; object-fit: cover; display: block; }
+	.description {
+		margin: 0.5rem 0 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
+		overflow: hidden; overflow-wrap: anywhere;
+	}
+	.recherche { margin: 0.2rem 0 0.5rem; }
 	.valeur { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 	.badge { font-size: 0.72rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 700; }
 	.badge.pub { background: color-mix(in srgb, var(--paye) 20%, transparent); color: var(--paye); }
