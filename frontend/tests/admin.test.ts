@@ -134,3 +134,17 @@ test('faux likes : fourchette affichée, et sans estimation fiable on classe sur
 	// 19 751 likes sans estimation passent devant 15 000 likes authentiques estimés
 	assert.deepEqual(top([fiable, petit], 'likes_authentiques_estimes', 10).map((p) => p.publication_id), ['p', 'f']);
 });
+
+test('tri par groupe : mois puis likes, le 2e niveau classe à l’intérieur de chaque mois', async () => {
+	const { top, valeurCritere } = await import('../src/lib/admin.ts');
+	const liste = [
+		pub('mai-petit', 'video_courte', { published_at: '2025-05-03T10:00:00Z', likes: 10 }),
+		pub('juin', 'video_courte', { published_at: '2025-06-20T10:00:00Z', likes: 5 }),
+		pub('mai-grand', 'video_courte', { published_at: '2025-05-28T10:00:00Z', likes: 900 })
+	];
+	const tri = [{ critere: 'mois', sens: 'desc' }, { critere: 'likes', sens: 'desc' }] as const;
+	assert.deepEqual(top(liste, [...tri], 10).map((p) => p.publication_id), ['juin', 'mai-grand', 'mai-petit']);
+	assert.equal(valeurCritere(liste[0], 'mois'), 'mai 2025');
+	const achat = [pub('a', 'video_courte', { periode_achat: false, likes: 1 }), pub('b', 'video_courte', { periode_achat: true, likes: 2 })];
+	assert.deepEqual(top(achat, [{ critere: 'periode_achat', sens: 'asc' }], 10).map((p) => p.publication_id), ['a', 'b']);
+});

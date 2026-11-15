@@ -107,8 +107,12 @@ export const CRITERES = [
 	{ id: 'partages', label: 'Partages', aide: 'envois de la publication' },
 	{ id: 'enregistrements', label: 'Enregistrements', aide: 'ajouts aux collections' },
 	{ id: 'engagement_authentique', label: 'Engagement authentique', aide: 'sans les commentaires suspects' },
-	{ id: 'published_at', label: 'Date de publication', aide: 'jour de mise en ligne' }
-] as const satisfies readonly { id: keyof Publication; label: string; aide: string }[];
+	{ id: 'published_at', label: 'Date de publication', aide: 'jour de mise en ligne' },
+	// Critères qui forment des groupes : utiles en 1er niveau, le 2e classe à l'intérieur de chaque groupe
+	{ id: 'mois', label: 'Mois de publication', aide: 'regroupe par mois', groupe: true },
+	{ id: 'periode_achat', label: 'Période d’achat', aide: 'publiées pendant une période d’achat d’un côté, le reste de l’autre', groupe: true },
+	{ id: 'boosts', label: 'Boosts', aide: 'nombre de boosts payés (0 = pas boostée)', groupe: true }
+] as const satisfies readonly { id: keyof Publication | 'mois'; label: string; aide: string; groupe?: boolean }[];
 
 export type Critere = (typeof CRITERES)[number]['id'];
 
@@ -122,6 +126,11 @@ export type Tri = { critere: Critere; sens: Sens };
 
 /** Valeur numérique d'un critère (la date devient un horodatage) ; null si absente */
 export function valeur(p: Publication, c: Critere): number | null {
+	if (c === 'mois') {
+		const d = p.published_at ? new Date(p.published_at) : null;
+		return d && !Number.isNaN(d.getTime()) ? d.getFullYear() * 12 + d.getMonth() : null;
+	}
+	if (c === 'periode_achat') return p.periode_achat == null ? null : Number(p.periode_achat);
 	if (c === 'published_at') {
 		const t = p.published_at ? Date.parse(p.published_at) : NaN;
 		return Number.isNaN(t) ? null : t;
@@ -268,6 +277,11 @@ export function nomPays(code: string): string {
 /** Valeur d'un critère pour l'affichage (pourcentage ou nombre) */
 export function valeurCritere(p: Publication, c: Critere): string {
 	if (c === 'published_at') return date(p.published_at);
+	if (c === 'mois') {
+		const d = p.published_at ? new Date(p.published_at) : null;
+		return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '–';
+	}
+	if (c === 'periode_achat') return p.periode_achat == null ? '–' : p.periode_achat ? 'oui' : 'non';
 	if (c === 'likes_authentiques_estimes' && p.likes_authentiques_estimes == null) return nombre(p.likes);
 	return c === 'part_likes_faux' || c === 'engagement_authentique' ? pct(p[c], 1) : nombre(p[c]);
 }
