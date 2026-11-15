@@ -30,7 +30,8 @@ const pubs = [
 ];
 
 test('top des réels : tri décroissant, valeurs absentes à la fin, images exclues', () => {
-	assert.deepEqual(top(pubs, 'likes_authentiques_estimes', 10).map((p) => p.publication_id), ['b', 'a', 'c', 'e']);
+	// c et e sans estimation des faux : classés sur leurs likes totaux (100), devant a (80 authentiques)
+	assert.deepEqual(top(pubs, 'likes_authentiques_estimes', 10).map((p) => p.publication_id), ['b', 'c', 'e', 'a']);
 	assert.deepEqual(top(pubs, 'likes_authentiques_estimes', 1, false).map((p) => p.publication_id), ['d']);
 	assert.deepEqual(top(pubs, 'part_likes_faux', 2).map((p) => p.publication_id), ['a', 'b']);
 	assert.equal(top(pubs, 'likes_payes', 1)[0].publication_id, 'e');
@@ -121,4 +122,29 @@ test('tri sur deux niveaux, chacun croissant ou décroissant ; valeurs absentes 
 	// date : plus récente d'abord, sans date à la fin
 	assert.deepEqual(ids(top(liste, [{ critere: 'published_at', sens: 'desc' }], 10)), ['2', '3', '1', '4']);
 	assert.match(valeurCritere(liste[0], 'published_at'), /2026/);
+});
+
+test('faux likes : fourchette affichée, et sans estimation fiable on classe sur les likes totaux', async () => {
+	const { fourchette, top, valeurCritere } = await import('../src/lib/admin.ts');
+	const petit = pub('p', 'video_courte', { likes: 19751, likes_authentiques_estimes: null, part_likes_faux_bas: 0.04, part_likes_faux_haut: 0.426 });
+	const fiable = pub('f', 'video_courte', { likes: 20000, likes_authentiques_estimes: 15000 });
+	assert.equal(fourchette(petit), '4 à 43 %');
+	assert.equal(fourchette(fiable), '');
+	assert.equal(valeurCritere(petit, 'likes_authentiques_estimes'), (19751).toLocaleString('fr-FR'));
+	// 19 751 likes sans estimation passent devant 15 000 likes authentiques estimés
+	assert.deepEqual(top([fiable, petit], 'likes_authentiques_estimes', 10).map((p) => p.publication_id), ['p', 'f']);
+});
+
+test('tri par groupe : mois puis likes, le 2e niveau classe à l’intérieur de chaque mois', async () => {
+	const { top, valeurCritere } = await import('../src/lib/admin.ts');
+	const liste = [
+		pub('mai-petit', 'video_courte', { published_at: '2025-05-03T10:00:00Z', likes: 10 }),
+		pub('juin', 'video_courte', { published_at: '2025-06-20T10:00:00Z', likes: 5 }),
+		pub('mai-grand', 'video_courte', { published_at: '2025-05-28T10:00:00Z', likes: 900 })
+	];
+	const tri = [{ critere: 'mois', sens: 'desc' }, { critere: 'likes', sens: 'desc' }] as const;
+	assert.deepEqual(top(liste, [...tri], 10).map((p) => p.publication_id), ['juin', 'mai-grand', 'mai-petit']);
+	assert.equal(valeurCritere(liste[0], 'mois'), 'mai 2025');
+	const achat = [pub('a', 'video_courte', { periode_achat: false, likes: 1 }), pub('b', 'video_courte', { periode_achat: true, likes: 2 })];
+	assert.deepEqual(top(achat, [{ critere: 'periode_achat', sens: 'asc' }], 10).map((p) => p.publication_id), ['a', 'b']);
 });

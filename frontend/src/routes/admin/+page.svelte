@@ -10,6 +10,7 @@
 		date,
 		description,
 		filtrerComptes,
+		fourchette,
 		nombre,
 		nomPays,
 		pct,
@@ -71,6 +72,21 @@
 		top(rechercherPublications(publications, recherche), tris, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat)
 	);
 	const critereActif = $derived(CRITERES.find((c) => c.id === critere)!);
+	const estGroupe = (c: object | undefined) => !!c && 'groupe' in c && !!c.groupe;
+	/** 1er niveau en groupes (mois, période d'achat, boosts) : titres de groupe entre les cartes */
+	const parGroupes = $derived(estGroupe(critereActif));
+	/** Chiffre mis en avant sur la carte : le 2e critère quand le 1er ne fait que regrouper */
+	const critereAffiche = $derived(parGroupes && critere2Actif ? critere2Actif : critereActif);
+	/** Critère rappelé sous la date (ni celui mis en avant, ni le groupe, ni la date déjà affichée) */
+	const critereRappel = $derived(
+		[critereActif, critere2Actif].find((c) => c && c !== critereAffiche && !estGroupe(c) && c.id !== 'published_at')
+	);
+	const titreGroupe = (p: Publication) =>
+		critere === 'periode_achat'
+			? p.periode_achat ? 'Pendant une période d’achat' : 'Hors périodes d’achat'
+			: critere === 'boosts'
+				? p.boosts ? `Boostées ×${p.boosts}` : 'Pas boostées'
+				: valeurCritere(p, critere);
 	const comptesFiltres = $derived(filtrerComptes(comptes, filtre));
 	const niveaux = $derived(compterNiveaux(comptes));
 	const audience = $derived(resumeAudience(pays));
@@ -211,7 +227,12 @@
 						Classer par
 						<span class="tri">
 							<select bind:value={critere}>
-								{#each CRITERES as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+								<optgroup label="Chiffres">
+									{#each CRITERES.filter((c) => !estGroupe(c)) as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+								</optgroup>
+								<optgroup label="Regrouper par (puis classer avec « Puis par »)">
+									{#each CRITERES.filter((c) => estGroupe(c)) as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+								</optgroup>
 							</select>
 							<button type="button" class="sens" title={libelleSens(sens)} aria-label={libelleSens(sens)}
 								onclick={() => (sens = sens === 'desc' ? 'asc' : 'desc')}>{sens === 'desc' ? '↓' : '↑'}</button>
@@ -222,7 +243,7 @@
 						<span class="tri">
 							<select bind:value={critere2}>
 								<option value="">—</option>
-								{#each CRITERES as c (c.id)}{#if c.id !== critere}<option value={c.id}>{c.label}</option>{/if}{/each}
+								{#each CRITERES.filter((c) => !estGroupe(c)) as c (c.id)}{#if c.id !== critere}<option value={c.id}>{c.label}</option>{/if}{/each}
 							</select>
 							<button type="button" class="sens" title={libelleSens(sens2)} aria-label={libelleSens(sens2)} disabled={!critere2}
 								onclick={() => (sens2 = sens2 === 'desc' ? 'asc' : 'desc')}>{sens2 === 'desc' ? '↓' : '↑'}</button>
@@ -247,7 +268,11 @@
 					<input type="search" bind:value={recherche} placeholder="surf, #recette…" autocapitalize="none" />
 				</label>
 				<p class="soft petit">
-					{critereActif.label} : {critereActif.aide}.{#if critere2Actif && critere2 !== critere}{' '}Égalités départagées par {critere2Actif.label.toLowerCase()}.{/if}
+					{#if parGroupes}
+						Groupes par {critereActif.label.toLowerCase()}{#if critere2Actif}, classés par {critere2Actif.label.toLowerCase()} dans chaque groupe{:else} : choisis un critère dans « Puis par » pour classer dans chaque groupe{/if}.
+					{:else}
+						{critereActif.label} : {critereActif.aide}.{#if critere2Actif && critere2 !== critere}{' '}En cas d’égalité exacte seulement : {critere2Actif.label.toLowerCase()} (pour classer dans des groupes, choisis un mois ou une période d’achat en 1er).{/if}
+					{/if}
 				</p>
 
 				{#if erreurs.publications}
@@ -260,6 +285,9 @@
 
 				<ol class="classement">
 					{#each classement as p, i (p.publication_id)}
+						{#if parGroupes && (i === 0 || titreGroupe(classement[i - 1]) !== titreGroupe(p))}
+							<li class="groupe" aria-hidden="true">{titreGroupe(p)}</li>
+						{/if}
 						<li class="card">
 							<div class="tete">
 								<span class="rang">{i + 1}</span>
@@ -279,17 +307,14 @@
 								<div class="titre">
 									{#if p.url}<a href={p.url} target="_blank" rel="noopener noreferrer">{titre(p)}</a>
 									{:else}<span class="nom">{titre(p)}</span>{/if}
-									{#if p.texte?.trim()}<span class="soft petit quand">{p.libelle_format} · {date(p.published_at)}</span>{/if}
+									<span class="soft petit quand">
+										{#if p.texte?.trim()}{p.libelle_format} · {date(p.published_at)}{/if}{#if p.texte?.trim() && critereRappel}{' · '}{/if}{#if critereRappel}{critereRappel.label} : {valeurCritere(p, critereRappel.id)}{/if}
+									</span>
 									{#if p.boosts}<span class="badge pub">Boosté ×{p.boosts}</span>{/if}
 									{#if p.likes_superieurs_aux_vues}<span class="badge achat" title="Plus de likes que de vues">Likes achetés</span>{/if}
 									{#if p.periode_achat}<span class="badge periode" title="Publiée pendant une période d’achat de likes ou d’abonnés">Période d’achat</span>{/if}
 								</div>
-								<span class="valeurs">
-									<strong class="valeur">{valeurCritere(p, critere)}</strong>
-									{#if critere2Actif && critere2 !== critere}
-										<span class="soft petit">{critere2Actif.label} : {valeurCritere(p, critere2Actif.id)}</span>
-									{/if}
-								</span>
+								<strong class="valeur">{valeurCritere(p, critereAffiche.id)}</strong>
 							</div>
 							{#if description(p)}<p class="soft petit description">{description(p)}</p>{/if}
 
@@ -304,15 +329,30 @@
 
 							{#if p.likes_faux_estimes != null}
 								<div class="barre-legende">
-									<span>{pct(p.part_likes_faux)} de faux{#if p.estimation === 'likes au-delà des vues'}{' · au-delà des vues'}{/if}</span>
+									<span>{pct(p.part_likes_faux)} de faux{#if p.estimation === 'likes au-delà des vues'}{' · au-delà des vues'}{:else if p.estimation === 'ratio likes/vues'}{' · ratio likes/vues'}{/if}</span>
 									<span><i class="pastille vrai"></i>authentiques {nombre(p.likes_authentiques_estimes)} · <i class="pastille faux"></i>faux {nombre(p.likes_faux_estimes)}</span>
 								</div>
 								<div class="barre" aria-hidden="true">
 									<span class="vrai" style:width={largeur(p.likes_authentiques_estimes ?? 0, p.likes ?? 0)}></span>
 									<span class="faux" style:width={largeur(p.likes_faux_estimes, p.likes ?? 0)}></span>
 								</div>
+							{:else if p.likers_analyses > 0}
+								<p class="soft petit">
+									<span class="badge faible">Échantillon trop petit</span>
+									{nombre(p.likers_analyses)} liker{p.likers_analyses > 1 ? 's' : ''} analysé{p.likers_analyses > 1 ? 's' : ''} sur {nombre(p.likes)} likes (il en faut 30) : de {fourchette(p) || '?'} de faux, impossible à trancher.
+								</p>
 							{:else}
 								<p class="soft petit">Likers pas encore analysés, et pas plus de likes que de vues.</p>
+							{/if}
+							{#if p.likes_faux_estimes != null && p.estimation !== 'likers analysés' && fourchette(p)}
+								<p class="soft petit">Likers analysés ({nombre(p.likers_analyses)}) : de {fourchette(p)} de faux, trop peu pour compter.</p>
+							{:else if p.likes_faux_estimes != null && p.estimation === 'likers analysés' && fourchette(p)}
+								<p class="soft petit">Fourchette à 95 % : {fourchette(p)} de faux (sur {nombre(p.likers_analyses)} likers analysés).</p>
+							{/if}
+							{#if p.periode_achat && p.ratio_likes_vues != null && p.ratio_reference != null}
+								<p class="soft petit">
+									Likes / vues : {pct(p.ratio_likes_vues, 1)} · réels hors achat : {pct(p.ratio_reference, 1)}{#if p.likes_au_dela_du_ratio}{' · '}<strong>{nombre(p.likes_au_dela_du_ratio)} likes en trop</strong>{/if}
+								</p>
 							{/if}
 
 							<dl>
@@ -497,7 +537,10 @@
 	}
 	.recherche { margin: 0.2rem 0 0.5rem; }
 	.valeur { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
-	.valeurs { display: grid; justify-items: end; text-align: right; }
+	.classement .groupe {
+		font-weight: 800; font-size: 0.95rem; color: var(--text-soft); text-transform: capitalize;
+		margin: 0.6rem 0 -0.2rem; padding-left: 0.2rem;
+	}
 	.tri { display: flex; gap: 0.3rem; }
 	.tri select { flex: 1; }
 	.sens {
@@ -509,6 +552,8 @@
 	.badge.pub { background: color-mix(in srgb, var(--paye) 20%, transparent); color: var(--paye); }
 	.badge.achat { background: color-mix(in srgb, var(--faux) 18%, transparent); color: var(--faux); }
 	.badge.periode { background: color-mix(in srgb, var(--doute) 20%, transparent); color: var(--doute); }
+	.classement li > p.soft { margin-top: 0.5rem; }
+	.badge.faible { background: var(--surface-soft); color: var(--text-soft); margin-right: 0.3rem; }
 
 	.barre-legende { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-soft); margin-top: 0.7rem; }
 	.barre { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--surface-soft); margin-top: 0.25rem; }

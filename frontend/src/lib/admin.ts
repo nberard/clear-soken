@@ -38,7 +38,17 @@ export type Publication = {
 	likes_superieurs_aux_vues?: boolean | null;
 	likes_au_dela_des_vues?: number | null;
 	/** D'où vient l'estimation des faux likes */
-	estimation?: 'likers analysés' | 'likes au-delà des vues' | null;
+	estimation?: 'likers analysés' | 'likes au-delà des vues' | 'ratio likes/vues' | null;
+	/** Assez de likers analysés (30 et plus) pour que leur part de faux compte */
+	echantillon_suffisant?: boolean | null;
+	/** Fourchette à 95 % de la part de faux parmi les likers analysés */
+	part_likes_faux_bas?: number | null;
+	part_likes_faux_haut?: number | null;
+	/** Likes / vues de la publication, et la médiane des réels hors périodes d'achat */
+	ratio_likes_vues?: number | null;
+	ratio_reference?: number | null;
+	/** Période d'achat : likes au-delà du ratio normal (90e centile des réels hors achat) */
+	likes_au_dela_du_ratio?: number | null;
 	/** Publiée pendant une période d'achat de likes / d'abonnés (PERIODES_ACHAT côté clearmind-tools) */
 	periode_achat?: boolean | null;
 };
@@ -82,10 +92,11 @@ export const NIVEAUX: Niveau[] = ['probablement faux', 'à vérifier', 'plutôt 
 
 /** Critères du top des publications. `vide` : valeur absente (réel sans liker analysé…) toujours classée à la fin */
 export const CRITERES = [
-	{ id: 'likes_authentiques_estimes', label: 'Likes authentiques', aide: 'likes moins les faux estimés' },
+	{ id: 'likes_authentiques_estimes', label: 'Likes authentiques', aide: 'likes moins les faux estimés (sans estimation fiable : les likes totaux)' },
 	{ id: 'likes_faux_estimes', label: 'Likes faux', aide: 'estimés d’après les likers analysés' },
-	{ id: 'part_likes_faux', label: '% de likes faux', aide: 'likers analysés, ou likes au-delà des vues' },
+	{ id: 'part_likes_faux', label: '% de likes faux', aide: 'au moins 30 likers analysés, likes au-delà des vues ou ratio likes/vues' },
 	{ id: 'likes_au_dela_des_vues', label: 'Likes au-delà des vues', aide: 'plus de likes que de vues, signe de likes achetés' },
+	{ id: 'likes_au_dela_du_ratio', label: 'Likes au-delà du ratio normal', aide: 'période d’achat : likes en trop par rapport aux vues, comparé aux réels hors achat' },
 	{ id: 'likes_payes', label: 'Likes payés', aide: 'apportés par les boosts' },
 	{ id: 'likes_organiques', label: 'Likes organiques', aide: 'likes moins likes payés' },
 	{ id: 'vues_organiques', label: 'Vues organiques', aide: 'vues moins vues payées' },
@@ -96,8 +107,12 @@ export const CRITERES = [
 	{ id: 'partages', label: 'Partages', aide: 'envois de la publication' },
 	{ id: 'enregistrements', label: 'Enregistrements', aide: 'ajouts aux collections' },
 	{ id: 'engagement_authentique', label: 'Engagement authentique', aide: 'sans les commentaires suspects' },
-	{ id: 'published_at', label: 'Date de publication', aide: 'jour de mise en ligne' }
-] as const satisfies readonly { id: keyof Publication; label: string; aide: string }[];
+	{ id: 'published_at', label: 'Date de publication', aide: 'jour de mise en ligne' },
+	// Critères qui forment des groupes : utiles en 1er niveau, le 2e classe à l'intérieur de chaque groupe
+	{ id: 'mois', label: 'Mois de publication', aide: 'regroupe par mois', groupe: true },
+	{ id: 'periode_achat', label: 'Période d’achat', aide: 'publiées pendant une période d’achat d’un côté, le reste de l’autre', groupe: true },
+	{ id: 'boosts', label: 'Boosts', aide: 'nombre de boosts payés (0 = pas boostée)', groupe: true }
+] as const satisfies readonly { id: keyof Publication | 'mois'; label: string; aide: string; groupe?: boolean }[];
 
 export type Critere = (typeof CRITERES)[number]['id'];
 
@@ -111,11 +126,25 @@ export type Tri = { critere: Critere; sens: Sens };
 
 /** Valeur numérique d'un critère (la date devient un horodatage) ; null si absente */
 export function valeur(p: Publication, c: Critere): number | null {
+	if (c === 'mois') {
+		const d = p.published_at ? new Date(p.published_at) : null;
+		return d && !Number.isNaN(d.getTime()) ? d.getFullYear() * 12 + d.getMonth() : null;
+	}
+	if (c === 'periode_achat') return p.periode_achat == null ? null : Number(p.periode_achat);
 	if (c === 'published_at') {
 		const t = p.published_at ? Date.parse(p.published_at) : NaN;
 		return Number.isNaN(t) ? null : t;
 	}
+	// Sans estimation fiable des faux likes, on classe sur les likes totaux plutôt qu'en fin de liste
+	if (c === 'likes_authentiques_estimes') return p.likes_authentiques_estimes ?? p.likes ?? null;
 	return p[c] ?? null;
+}
+
+/** « 4 à 43 % » : fourchette à 95 % de la part de faux parmi les likers analysés, '' sans liker analysé */
+export function fourchette(p: Publication): string {
+	if (p.part_likes_faux_bas == null || p.part_likes_faux_haut == null) return '';
+	const r = (x: number) => Math.round(x * 100);
+	return `${r(p.part_likes_faux_bas)} à ${r(p.part_likes_faux_haut)} %`;
 }
 
 /** Tri sur plusieurs niveaux : le 2e départage les égalités du 1er. Valeurs absentes toujours à la fin. */
@@ -248,5 +277,11 @@ export function nomPays(code: string): string {
 /** Valeur d'un critère pour l'affichage (pourcentage ou nombre) */
 export function valeurCritere(p: Publication, c: Critere): string {
 	if (c === 'published_at') return date(p.published_at);
+	if (c === 'mois') {
+		const d = p.published_at ? new Date(p.published_at) : null;
+		return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '–';
+	}
+	if (c === 'periode_achat') return p.periode_achat == null ? '–' : p.periode_achat ? 'oui' : 'non';
+	if (c === 'likes_authentiques_estimes' && p.likes_authentiques_estimes == null) return nombre(p.likes);
 	return c === 'part_likes_faux' || c === 'engagement_authentique' ? pct(p[c], 1) : nombre(p[c]);
 }
