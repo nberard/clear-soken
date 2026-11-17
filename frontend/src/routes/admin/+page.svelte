@@ -10,6 +10,7 @@
 		date,
 		description,
 		filtrerComptes,
+		LIBELLES_VERDICT,
 		libelleGroupe,
 		fourchette,
 		nombre,
@@ -27,7 +28,9 @@
 		type Tri,
 		type Pays,
 		type Publication,
-		type Qualite
+		type Qualite,
+		type Verdict,
+		type Verdicts
 	} from '#lib/admin.ts';
 
 	type Onglet = 'reels' | 'comptes' | 'audience';
@@ -66,7 +69,33 @@
 	/** Miniatures qui n'ont pas chargé (lien Instagram expiré) : on montre un aperçu neutre */
 	let cassees = $state(new Set<string>());
 	const aDesPeriodes = $derived(publications.some((p) => p.periode_achat));
-	let filtre: FiltreComptes = $state({ niveau: 'probablement faux', population: 'tous', recherche: '' });
+	let filtre: FiltreComptes = $state({ niveau: 'probablement faux', population: 'tous', recherche: '', traites: false });
+	let verdicts: Verdicts = $state({});
+	const nbTraites = $derived(comptes.filter((c) => verdicts[c.compte_id]).length);
+	let erreurVerdict = $state('');
+
+	/** Pose (ou retire, si on reclique le même) un verdict ; la carte quitte la liste sauf si « traités » est coché */
+	async function poserVerdict(c: Compte, v: Verdict) {
+		const avant = verdicts[c.compte_id];
+		const nouveau = avant?.verdict === v ? null : v;
+		const suivant = { ...verdicts };
+		if (nouveau) suivant[c.compte_id] = { verdict: nouveau, nom_compte: c.nom_compte, le: new Date().toISOString().slice(0, 10) };
+		else delete suivant[c.compte_id];
+		verdicts = suivant;
+		erreurVerdict = '';
+		const res = await fetch('/api/admin/verdicts', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ compte_id: c.compte_id, nom_compte: c.nom_compte, verdict: nouveau })
+		}).catch(() => null);
+		if (!res?.ok) {
+			const remis = { ...verdicts };
+			if (avant) remis[c.compte_id] = avant;
+			else delete remis[c.compte_id];
+			verdicts = remis;
+			erreurVerdict = `Verdict non enregistré pour @${c.nom_compte}${res?.status === 401 ? ' (session expirée)' : ''}.`;
+		}
+	}
 	let affiches = $state(50);
 
 	const tousClasses = $derived(
@@ -85,7 +114,7 @@
 		[critereActif, critere2Actif].find((c) => c && c !== critereAffiche && !estGroupe(c) && c.id !== 'published_at')
 	);
 	const titreGroupe = (p: Publication) => libelleGroupe(p, critere);
-	const comptesFiltres = $derived(filtrerComptes(comptes, filtre));
+	const comptesFiltres = $derived(filtrerComptes(comptes, filtre, verdicts));
 	const niveaux = $derived(compterNiveaux(comptes));
 	const audience = $derived(resumeAudience(pays));
 	const maxPays = $derived(Math.max(1, ...pays.map((p) => p.abonnes)));
@@ -113,7 +142,7 @@
 	$effect(() => {
 		// relu à chaque changement de tri, de filtre ou de recherche
 		void [critere, sens, critere2, sens2, combien, reelsSeulement, achetesSeulement, sansPeriodesAchat, recherche,
-			filtre.niveau, filtre.population, filtre.recherche, affiches];
+			filtre.niveau, filtre.population, filtre.recherche, filtre.traites, affiches];
 		if (premierPassage) {
 			premierPassage = false;
 			return;
@@ -144,15 +173,20 @@
 			['qualite', (l: Qualite[]) => (qualite = l)],
 			['pays', (l: Pays[]) => (pays = l)]
 		] as const;
-		await Promise.all(
-			vues.map(async ([vue, poser]) => {
+		const lireVerdicts = fetch('/api/admin/verdicts', { credentials: 'same-origin' })
+			.then((r) => (r.ok ? r.json() : {}))
+			.then((v) => (verdicts = v))
+			.catch(() => {});
+		await Promise.all([
+			lireVerdicts,
+			...vues.map(async ([vue, poser]) => {
 				try {
 					(poser as (l: unknown) => void)(await charger(vue));
 				} catch (e) {
 					if ((e as Error).message !== 'session') erreurs[vue] = (e as Error).message;
 				}
 			})
-		);
+		]);
 	}
 
 	onMount(async () => {
@@ -464,7 +498,9 @@
 						</select>
 					</label>
 					<label>Chercher <input type="search" bind:value={filtre.recherche} placeholder="@nom" autocapitalize="none" /></label>
+					<label class="case"><input type="checkbox" bind:checked={filtre.traites} /> Afficher les comptes traités ({nombre(nbTraites)})</label>
 				</div>
+				{#if erreurVerdict}<p class="erreur" role="alert">{erreurVerdict}</p>{/if}
 
 				{#if erreurs.comptes}<p class="erreur">Comptes indisponibles : {erreurs.comptes}</p>{/if}
 				<ul class="comptes">
@@ -491,6 +527,14 @@
 							</div>
 							{#if c.raisons}<p class="petit">{c.raisons}</p>{/if}
 							<p class="soft petit">{nombre(c.abonnes)} abonnés · {nombre(c.abonnements)} abonnements · {nombre(c.publications)} publications</p>
+							<div class="verdicts" role="group" aria-label="Verdict pour @{c.nom_compte}">
+								<a class="ouvrir" href={c.url} target="_blank" rel="noopener noreferrer">Ouvrir dans Instagram ↗</a>
+								{#each (c.est_suivi ? ['retire', 'faux', 'vrai'] : ['faux', 'vrai']) as Verdict[] as v (v)}
+									<button class="v-{v}" aria-pressed={verdicts[c.compte_id]?.verdict === v} onclick={() => poserVerdict(c, v)}>
+										{LIBELLES_VERDICT[v]}
+									</button>
+								{/each}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -632,6 +676,18 @@
 	.puces button.reel[aria-pressed='true'] { background: var(--vrai); color: #fff; border-color: var(--vrai); }
 
 	.comptes p { margin: 0.4rem 0 0; }
+	.verdicts { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; align-items: center; }
+	.verdicts .ouvrir {
+		font-weight: 700; color: var(--primary); text-decoration: none; margin-right: auto;
+		padding: 0.35rem 0; font-size: 0.85rem;
+	}
+	.verdicts button {
+		border: 1px solid var(--border); background: var(--surface); color: var(--text);
+		border-radius: 999px; padding: 0.35rem 0.75rem; font-size: 0.82rem;
+	}
+	.verdicts button.v-retire[aria-pressed='true'] { background: var(--text); color: var(--bg); border-color: var(--text); }
+	.verdicts button.v-faux[aria-pressed='true'] { background: var(--faux); color: #fff; border-color: var(--faux); }
+	.verdicts button.v-vrai[aria-pressed='true'] { background: var(--vrai); color: #fff; border-color: var(--vrai); }
 	.pct { font-weight: 800; border-radius: 999px; padding: 0.15rem 0.55rem; color: #fff; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 	.pct.faux { background: var(--faux); }
 	.pct.doute { background: var(--doute); }

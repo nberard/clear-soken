@@ -197,6 +197,12 @@ Après 10 mots de passe faux en 10 minutes, la connexion est suspendue. Le navig
 requête : l'API n'exécute que 4 requêtes écrites dans `backend/src/admin.rs`, plafonnées à 100 Mo lus chacune, avec
 un cache de 10 minutes. Réponses en `Cache-Control: no-store`.
 
+**Faire le ménage parmi les comptes suivis** : onglet Faux comptes → « Voir la liste ». Sur chaque compte, « Ouvrir dans
+Instagram » ouvre le profil (pour ne plus le suivre), puis « Je ne le suis plus », « Faux » ou « Vrai compte » le retire de
+la liste. Ces verdicts sont gardés dans `verdicts_instagram.json`, à côté des comptes (volume Docker `comptes`), et
+l'emportent sur le pourcentage calculé. L'appli ne se désabonne de rien elle-même : le faire automatiquement demanderait de
+connecter le compte Instagram principal, qu'Instagram bloquerait vite.
+
 **Sans Google Cloud** (développement) : exporte les marts de la base DuckDB de démo de clearmind-tools, puis lance
 l'API avec `ADMIN_DONNEES_DIR` :
 
