@@ -68,6 +68,10 @@ test('filtre des comptes', () => {
 	assert.deepEqual(filtrerComptes(comptes, { ...tous, recherche: '@JULIE' }).map((c) => c.nom_compte), ['julie_photo']);
 	const suivis = [...comptes, { ...compte('bot123456', 92, 'probablement faux', false, false), est_suivi: true }];
 	assert.deepEqual(filtrerComptes(suivis, { ...tous, population: 'suivis' }).map((c) => c.nom_compte), ['bot123456']);
+	// Un verdict retire le compte de la liste, sauf si on affiche les comptes traités
+	const v = { bot123456: { verdict: 'retire' as const, nom_compte: 'bot123456', le: '2026-11-17' } };
+	assert.deepEqual(filtrerComptes(suivis, { ...tous, population: 'suivis' }, v), []);
+	assert.equal(filtrerComptes(suivis, { ...tous, population: 'suivis', traites: true }, v).length, 1);
 	assert.deepEqual(compterNiveaux(comptes), { 'probablement faux': 1, 'à vérifier': 1, 'plutôt réel': 1 });
 });
 

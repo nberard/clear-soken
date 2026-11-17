@@ -257,12 +257,20 @@ export type FiltreComptes = {
 	niveau: Niveau | 'tous';
 	population: 'tous' | 'abonnes' | 'likers' | 'suivis';
 	recherche: string;
+	/** Afficher aussi les comptes déjà traités (un verdict posé) */
+	traites?: boolean;
 };
 
-export function filtrerComptes(comptes: Compte[], f: FiltreComptes): Compte[] {
+/** Verdict posé à la main : vrai, faux, ou retiré (je ne le suis plus). L'emporte sur le pourcentage. */
+export type Verdict = 'vrai' | 'faux' | 'retire';
+export type Verdicts = Record<string, { verdict: Verdict; nom_compte: string; le: string }>;
+export const LIBELLES_VERDICT: Record<Verdict, string> = { vrai: 'Vrai compte', faux: 'Faux', retire: 'Je ne le suis plus' };
+
+export function filtrerComptes(comptes: Compte[], f: FiltreComptes, verdicts: Verdicts = {}): Compte[] {
 	const q = f.recherche.trim().toLowerCase().replace(/^@/, '');
 	return comptes.filter(
 		(c) =>
+			(f.traites || !verdicts[c.compte_id]) &&
 			(f.niveau === 'tous' || c.niveau === f.niveau) &&
 			(f.population === 'tous' ||
 				(f.population === 'abonnes' ? c.est_abonne : f.population === 'suivis' ? !!c.est_suivi : c.est_liker)) &&

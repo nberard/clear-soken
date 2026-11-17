@@ -30,6 +30,7 @@ use crate::{
     AppState,
     bigquery::{BigQuery, Cache},
     comptes::nom_valide,
+    verdicts::{Verdicts, aujourdhui, demande_valide},
 };
 
 const COOKIE: &str = "cs_admin";
@@ -57,6 +58,8 @@ pub struct Admin {
     cache: Cache,
     sessions: Mutex<HashMap<String, (String, Instant)>>,
     echecs: Mutex<(Instant, u32)>,
+    /// Verdicts posés à la main sur les comptes (vrai, faux, retiré), voir verdicts.rs
+    pub verdicts: Verdicts,
 }
 
 impl Admin {
@@ -66,7 +69,14 @@ impl Admin {
             cache: Cache::new(Duration::from_secs(600)),
             sessions: Mutex::new(HashMap::new()),
             echecs: Mutex::new((Instant::now(), 0)),
+            verdicts: Verdicts::new(None),
         }
+    }
+
+    /// Verdicts gardés dans ce fichier (sinon en mémoire seulement)
+    pub fn avec_verdicts(mut self, path: PathBuf) -> Self {
+        self.verdicts = Verdicts::new(Some(path));
+        self
     }
 
     pub fn description(&self) -> String {
@@ -221,8 +231,52 @@ pub fn routes() -> Router<AppState> {
         .route("/deconnexion", post(deconnexion))
         .route("/moi", get(moi))
         .route("/stats/{vue}", get(stats))
+        .route("/verdicts", get(lire_verdicts).post(poser_verdict))
         // Rien de l'admin ne doit rester dans un cache (navigateur, service worker, proxy)
         .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-store")))
+}
+
+/// `GET /api/admin/verdicts` : { compte_id: { verdict, nom_compte, le } }
+async fn lire_verdicts(State(state): State<AppState>, headers: HeaderMap) -> Result<Json<Value>, StatusCode> {
+    let admin = admin(&state)?;
+    admin.session(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    Ok(Json(json!(admin.verdicts.tous())))
+}
+
+#[derive(Deserialize)]
+pub struct DemandeVerdict {
+    compte_id: String,
+    #[serde(default)]
+    nom_compte: String,
+    /// vrai, faux, retire ; null efface le verdict
+    verdict: Option<String>,
+}
+
+/// `POST /api/admin/verdicts` { compte_id, nom_compte, verdict } : 204, 400 si la demande est invalide
+async fn poser_verdict(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(d): Json<DemandeVerdict>,
+) -> Result<StatusCode, StatusCode> {
+    let admin = admin(&state)?;
+    admin.session(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    if !demande_valide(&d.compte_id, &d.nom_compte, d.verdict.as_deref()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    admin.verdicts.poser(&d.compte_id, &d.nom_compte, d.verdict.as_deref(), &aujourdhui()).map_err(|e| {
+        tracing::error!("verdict : {e}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Fichier des verdicts : ADMIN_VERDICTS_FILE, sinon à côté des comptes (volume « comptes »)
+fn fichier_verdicts() -> PathBuf {
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+    env("ADMIN_VERDICTS_FILE").map(PathBuf::from).unwrap_or_else(|| {
+        PathBuf::from(env("COMPTES_FILE").unwrap_or_else(|| "comptes/comptes.json".into()))
+            .with_file_name("verdicts_instagram.json")
+    })
 }
 
 /// Source des stats d'après l'environnement : BQ_CLE (+ BQ_PROJET, BQ_DATASET, BQ_LOCATION) ou ADMIN_DONNEES_DIR.
@@ -233,14 +287,14 @@ pub fn depuis_env() -> Option<Admin> {
         let dataset = env("BQ_DATASET").unwrap_or_else(|| "clearmind_or".into());
         let location = env("BQ_LOCATION").unwrap_or_else(|| "EU".into());
         match BigQuery::depuis_fichier(cle.as_ref(), env("BQ_PROJET"), dataset, location) {
-            Ok(bq) => return Some(Admin::new(Source::BigQuery(Box::new(bq)))),
+            Ok(bq) => return Some(Admin::new(Source::BigQuery(Box::new(bq))).avec_verdicts(fichier_verdicts())),
             Err(e) => {
                 tracing::error!("espace admin désactivé : {e}");
                 return None;
             }
         }
     }
-    env("ADMIN_DONNEES_DIR").map(|d| Admin::new(Source::Fichiers(d.into())))
+    env("ADMIN_DONNEES_DIR").map(|d| Admin::new(Source::Fichiers(d.into())).avec_verdicts(fichier_verdicts()))
 }
 
 #[cfg(test)]

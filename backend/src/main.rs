@@ -10,6 +10,7 @@ mod admin;
 mod bigquery;
 mod comptes;
 mod pricing;
+mod verdicts;
 
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 
@@ -426,6 +427,28 @@ mod tests {
 
         let moi = |c: &str| Request::get("/api/admin/moi").header("cookie", c).body(Body::empty()).unwrap();
         assert_eq!(app.clone().oneshot(moi(&cookie)).await.unwrap().status(), 200);
+        // Verdicts : posés puis relus, refusés sans session ou invalides
+        let verdict = |c: &str, corps: &str| {
+            Request::post("/api/admin/verdicts")
+                .header("cookie", c)
+                .header("content-type", "application/json")
+                .body(Body::from(corps.to_owned()))
+                .unwrap()
+        };
+        let ok = r#"{"compte_id":"1784","nom_compte":"piwi78000","verdict":"vrai"}"#;
+        assert_eq!(app.clone().oneshot(verdict(&cookie, ok)).await.unwrap().status(), 204);
+        assert_eq!(app.clone().oneshot(verdict("", ok)).await.unwrap().status(), 401);
+        let invalide = r#"{"compte_id":"1784","nom_compte":"x","verdict":"peut-etre"}"#;
+        assert_eq!(app.clone().oneshot(verdict(&cookie, invalide)).await.unwrap().status(), 400);
+        let res = app
+            .clone()
+            .oneshot(Request::get("/api/admin/verdicts").header("cookie", &cookie).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["1784"]["verdict"], "vrai");
+
         let fin = Request::post("/api/admin/deconnexion").header("cookie", &cookie).body(Body::empty()).unwrap();
         assert_eq!(app.clone().oneshot(fin).await.unwrap().status(), 204);
         assert_eq!(app.clone().oneshot(moi(&cookie)).await.unwrap().status(), 401);
