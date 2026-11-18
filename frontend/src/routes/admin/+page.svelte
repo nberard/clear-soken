@@ -33,9 +33,11 @@
 		type Verdicts
 	} from '#lib/admin.ts';
 	import AdminStories from '#lib/components/AdminStories.svelte';
+	import AdminEnregistrements from '#lib/components/AdminEnregistrements.svelte';
+	import type { Collection, Enregistrement } from '#lib/enregistrements.ts';
 	import type { AlaUne, Story } from '#lib/stories.ts';
 
-	type Onglet = 'reels' | 'comptes' | 'stories' | 'audience';
+	type Onglet = 'reels' | 'comptes' | 'stories' | 'enregistrements' | 'audience';
 
 	let etat: 'chargement' | 'connexion' | 'ouvert' = $state('chargement');
 	let moi = $state('');
@@ -51,6 +53,8 @@
 	let pays: Pays[] = $state([]);
 	let stories: Story[] = $state([]);
 	let highlights: AlaUne[] = $state([]);
+	let enregistrements: Enregistrement[] = $state([]);
+	let collectionsIg: Collection[] = $state([]);
 	let erreurs: Partial<Record<string, string>> = $state({});
 	let luLe: number | null = $state(null);
 
@@ -158,7 +162,8 @@
 	});
 	const erreurOnglet = $derived(
 		onglet === 'reels' ? erreurs.publications : onglet === 'comptes' ? (erreurs.comptes ?? erreurs.qualite)
-			: onglet === 'stories' ? (erreurs.stories ?? erreurs.highlights) : erreurs.pays
+			: onglet === 'stories' ? (erreurs.stories ?? erreurs.highlights)
+			: onglet === 'enregistrements' ? (erreurs.enregistrements ?? erreurs.collections) : erreurs.pays
 	);
 
 	async function toutCharger() {
@@ -178,7 +183,9 @@
 			['qualite', (l: Qualite[]) => (qualite = l)],
 			['pays', (l: Pays[]) => (pays = l)],
 			['stories', (l: Story[]) => (stories = l)],
-			['highlights', (l: AlaUne[]) => (highlights = l)]
+			['highlights', (l: AlaUne[]) => (highlights = l)],
+			['enregistrements', (l: Enregistrement[]) => (enregistrements = l)],
+			['collections', (l: Collection[]) => (collectionsIg = l)]
 		] as const;
 		const lireVerdicts = fetch('/api/admin/verdicts', { credentials: 'same-origin' })
 			.then((r) => (r.ok ? r.json() : {}))
@@ -288,6 +295,7 @@
 			<button role="tab" aria-selected={onglet === 'reels'} onclick={() => (onglet = 'reels')}>Top réels</button>
 			<button role="tab" aria-selected={onglet === 'comptes'} onclick={() => (onglet = 'comptes')}>Faux comptes</button>
 			<button role="tab" aria-selected={onglet === 'stories'} onclick={() => (onglet = 'stories')}>Stories</button>
+			<button role="tab" aria-selected={onglet === 'enregistrements'} onclick={() => (onglet = 'enregistrements')}>Enregistrements</button>
 			<button role="tab" aria-selected={onglet === 'audience'} onclick={() => (onglet = 'audience')}>Provenance</button>
 		</div>
 
@@ -304,6 +312,7 @@
 					{#if onglet === 'reels'}{nombre(classement.length)} affichée{classement.length > 1 ? 's' : ''} sur {nombre(tousClasses.length)}
 					{:else if onglet === 'comptes'}{nombre(comptesFiltres.length)} compte{comptesFiltres.length > 1 ? 's' : ''}
 					{:else if onglet === 'stories'}{nombre(stories.length)} stories · {nombre(highlights.length)} à la une
+					{:else if onglet === 'enregistrements'}{nombre(enregistrements.length)} enregistrements
 					{:else}{nombre(pays.length)} pays{/if}
 				</span>
 			{/if}
@@ -557,6 +566,8 @@
 			</section>
 		{:else if onglet === 'stories'}
 			<AdminStories {stories} {highlights} />
+		{:else if onglet === 'enregistrements'}
+			<AdminEnregistrements {enregistrements} collections={collectionsIg} />
 		{:else}
 			<section>
 				{#if erreurs.pays}<p class="erreur">Pays indisponibles : {erreurs.pays}</p>{/if}
@@ -611,8 +622,8 @@
 	.lien { background: none; border: 0; color: var(--primary); padding: 0; text-decoration: underline; }
 	.plus { display: block; margin: 0.5rem auto 1rem; }
 
-	.onglets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--surface-soft); border-radius: 999px; padding: 4px; margin-bottom: 1rem; }
-	.onglets button { border: 0; background: none; border-radius: 999px; padding: 0.55rem 0.3rem; color: var(--text-soft); font-weight: 600; font-size: 0.9rem; }
+	.onglets { display: flex; overflow-x: auto; scrollbar-width: none; gap: 4px; background: var(--surface-soft); border-radius: 999px; padding: 4px; margin-bottom: 1rem; }
+	.onglets button { flex: 1 0 auto; white-space: nowrap; border: 0; background: none; border-radius: 999px; padding: 0.55rem 0.8rem; color: var(--text-soft); font-weight: 600; font-size: 0.9rem; }
 	.onglets button[aria-selected='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 
 	.reglages { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; margin-bottom: 0.5rem; }

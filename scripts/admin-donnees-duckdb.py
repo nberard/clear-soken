@@ -22,6 +22,8 @@ MARTS = {
     "mart_audience_pays": "where platform = 'instagram' order by abonnes desc",
     "mart_instagram_stories": "order by publiee_le desc limit 5000",
     "mart_instagram_highlights": "order by plus_recente desc",
+    "mart_instagram_enregistrements": "order by position_enregistrement limit 20000",
+    "mart_instagram_collections": "order by publications desc",
 }
 
 
