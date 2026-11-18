@@ -47,6 +47,8 @@ const VUES: &[(&str, &str, &str)] = &[
     ("pays", "mart_audience_pays", "select * from `{t}` where platform = 'instagram' order by abonnes desc"),
     ("stories", "mart_instagram_stories", "select * from `{t}` order by publiee_le desc limit 5000"),
     ("highlights", "mart_instagram_highlights", "select * from `{t}` order by plus_recente desc"),
+    ("enregistrements", "mart_instagram_enregistrements", "select * from `{t}` order by position_enregistrement limit 20000"),
+    ("collections", "mart_instagram_collections", "select * from `{t}` order by publications desc"),
 ];
 
 pub enum Source {
@@ -206,7 +208,7 @@ async fn moi(State(state): State<AppState>, headers: HeaderMap) -> Result<Json<V
     Ok(Json(json!({ "nom": nom })))
 }
 
-/// `GET /api/admin/stats/{vue}` (publications, comptes, qualite, pays, stories, highlights) : { lignes, lu_le }
+/// `GET /api/admin/stats/{vue}` (publications, comptes, qualite, pays, stories, highlights, enregistrements, collections) : { lignes, lu_le }
 async fn stats(State(state): State<AppState>, headers: HeaderMap, Path(vue): Path<String>) -> Response {
     let admin = match admin(&state) {
         Ok(a) => a,
