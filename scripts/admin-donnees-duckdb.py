@@ -20,6 +20,8 @@ MARTS = {
     "mart_instagram_comptes": "order by pct_faux desc, reels_likes desc limit 5000",
     "mart_instagram_qualite": "",
     "mart_audience_pays": "where platform = 'instagram' order by abonnes desc",
+    "mart_instagram_stories": "order by publiee_le desc limit 5000",
+    "mart_instagram_highlights": "order by plus_recente desc",
 }
 
 

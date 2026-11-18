@@ -32,8 +32,10 @@
 		type Verdict,
 		type Verdicts
 	} from '#lib/admin.ts';
+	import AdminStories from '#lib/components/AdminStories.svelte';
+	import type { AlaUne, Story } from '#lib/stories.ts';
 
-	type Onglet = 'reels' | 'comptes' | 'audience';
+	type Onglet = 'reels' | 'comptes' | 'stories' | 'audience';
 
 	let etat: 'chargement' | 'connexion' | 'ouvert' = $state('chargement');
 	let moi = $state('');
@@ -47,6 +49,8 @@
 	let comptes: Compte[] = $state([]);
 	let qualite: Qualite[] = $state([]);
 	let pays: Pays[] = $state([]);
+	let stories: Story[] = $state([]);
+	let highlights: AlaUne[] = $state([]);
 	let erreurs: Partial<Record<string, string>> = $state({});
 	let luLe: number | null = $state(null);
 
@@ -153,7 +157,8 @@
 		minuterie = setTimeout(() => (calcul = false), 400);
 	});
 	const erreurOnglet = $derived(
-		onglet === 'reels' ? erreurs.publications : onglet === 'comptes' ? (erreurs.comptes ?? erreurs.qualite) : erreurs.pays
+		onglet === 'reels' ? erreurs.publications : onglet === 'comptes' ? (erreurs.comptes ?? erreurs.qualite)
+			: onglet === 'stories' ? (erreurs.stories ?? erreurs.highlights) : erreurs.pays
 	);
 
 	async function toutCharger() {
@@ -171,7 +176,9 @@
 			['publications', (l: Publication[]) => (publications = l)],
 			['comptes', (l: Compte[]) => (comptes = l)],
 			['qualite', (l: Qualite[]) => (qualite = l)],
-			['pays', (l: Pays[]) => (pays = l)]
+			['pays', (l: Pays[]) => (pays = l)],
+			['stories', (l: Story[]) => (stories = l)],
+			['highlights', (l: AlaUne[]) => (highlights = l)]
 		] as const;
 		const lireVerdicts = fetch('/api/admin/verdicts', { credentials: 'same-origin' })
 			.then((r) => (r.ok ? r.json() : {}))
@@ -280,6 +287,7 @@
 		<div class="onglets" role="tablist">
 			<button role="tab" aria-selected={onglet === 'reels'} onclick={() => (onglet = 'reels')}>Top réels</button>
 			<button role="tab" aria-selected={onglet === 'comptes'} onclick={() => (onglet = 'comptes')}>Faux comptes</button>
+			<button role="tab" aria-selected={onglet === 'stories'} onclick={() => (onglet = 'stories')}>Stories</button>
 			<button role="tab" aria-selected={onglet === 'audience'} onclick={() => (onglet = 'audience')}>Provenance</button>
 		</div>
 
@@ -295,6 +303,7 @@
 				<span>
 					{#if onglet === 'reels'}{nombre(classement.length)} affichée{classement.length > 1 ? 's' : ''} sur {nombre(tousClasses.length)}
 					{:else if onglet === 'comptes'}{nombre(comptesFiltres.length)} compte{comptesFiltres.length > 1 ? 's' : ''}
+					{:else if onglet === 'stories'}{nombre(stories.length)} stories · {nombre(highlights.length)} à la une
 					{:else}{nombre(pays.length)} pays{/if}
 				</span>
 			{/if}
@@ -546,6 +555,8 @@
 					d’abonnés, nom généré…). Il classe les comptes, il ne prouve rien : vérifie avant de bloquer.
 				</p>
 			</section>
+		{:else if onglet === 'stories'}
+			<AdminStories {stories} {highlights} />
 		{:else}
 			<section>
 				{#if erreurs.pays}<p class="erreur">Pays indisponibles : {erreurs.pays}</p>{/if}
@@ -600,7 +611,7 @@
 	.lien { background: none; border: 0; color: var(--primary); padding: 0; text-decoration: underline; }
 	.plus { display: block; margin: 0.5rem auto 1rem; }
 
-	.onglets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--surface-soft); border-radius: 999px; padding: 4px; margin-bottom: 1rem; }
+	.onglets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--surface-soft); border-radius: 999px; padding: 4px; margin-bottom: 1rem; }
 	.onglets button { border: 0; background: none; border-radius: 999px; padding: 0.55rem 0.3rem; color: var(--text-soft); font-weight: 600; font-size: 0.9rem; }
 	.onglets button[aria-selected='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 
