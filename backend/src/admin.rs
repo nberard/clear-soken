@@ -100,7 +100,7 @@ impl Admin {
         jeton
     }
 
-    fn session(&self, headers: &HeaderMap) -> Option<String> {
+    pub(crate) fn session(&self, headers: &HeaderMap) -> Option<String> {
         let jeton = jeton_cookie(headers)?;
         let s = self.sessions.lock().unwrap();
         s.get(jeton).filter(|(_, fin)| *fin > Instant::now()).map(|(nom, _)| nom.clone())
@@ -236,6 +236,8 @@ pub fn routes() -> Router<AppState> {
         .route("/moi", get(moi))
         .route("/stats/{vue}", get(stats))
         .route("/verdicts", get(lire_verdicts).post(poser_verdict))
+        // Index des sessions Claude Code, voir sessions_claude.rs
+        .merge(crate::sessions_claude::routes())
         // Rien de l'admin ne doit rester dans un cache (navigateur, service worker, proxy)
         .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-store")))
 }

@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton admin-cle
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton admin-cle claude-jeton
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -108,6 +108,18 @@ compte-jeton:     ## crée le jeton COMPTES_JETON (.env) que présentent les ser
 	  echo "-> nouveau jeton enregistré dans .env"; \
 	  if docker compose ps -q clearsoken 2>/dev/null | grep -q .; then docker compose up -d clearsoken; fi; \
 	fi
+
+claude-jeton:     ## crée le jeton CLAUDE_INDEX_JETON (.env) qui permet à la session Claude d'envoyer l'index des sessions, et l'affiche
+	@[ -f .env ] || cp .env.example .env
+	@if grep -Eq '^CLAUDE_INDEX_JETON=[A-Za-z0-9]{32,}$$' .env; then echo "-> jeton déjà présent dans .env"; else \
+	  s=$$(openssl rand -hex 32); \
+	  if grep -q '^CLAUDE_INDEX_JETON=' .env; then sed -i "s/^CLAUDE_INDEX_JETON=.*/CLAUDE_INDEX_JETON=$$s/" .env; \
+	  else echo "CLAUDE_INDEX_JETON=$$s" >> .env; fi; \
+	  echo "-> nouveau jeton enregistré dans .env"; \
+	  if docker compose ps -q clearsoken 2>/dev/null | grep -q .; then docker compose up -d clearsoken; fi; \
+	fi
+	@echo "Jeton à donner à la session Claude (formulaire sécurisé, jamais dans le chat) :"
+	@grep '^CLAUDE_INDEX_JETON=' .env | cut -d= -f2
 
 # --- Tableau de bord santé perso (mint-health), voir mint-health/README.md ---
 HEALTH_COMPOSE = cd mint-health && docker compose -f docker-compose.yml -f docker-compose.server.yml
