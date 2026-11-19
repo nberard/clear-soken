@@ -211,6 +211,24 @@ python3 scripts/admin-donnees-duckdb.py ../clearmind-tools/data-platform/local/c
 ADMIN_DONNEES_DIR=admin-donnees make dev-api
 ```
 
+### Sessions Claude (`/admin/sessions/`)
+
+Toutes mes sessions Claude Code au même endroit, pour retrouver où j'ai parlé de quoi : titre, statut (en cours,
+attend ma réponse, terminée…), ce que la session attend de moi, **mes messages** (avec les pièces jointes : images,
+sons, vidéos, documents) et **ce qui en est sorti** (PR, artifacts, fichiers envoyés, branches). Recherche sur tout
+(« airflow ovh », « Spotify », « mint-health »), filtres par statut et par type de pièce jointe ; le titre ouvre la
+session sur claude.ai.
+
+Le serveur ne peut pas lire les sessions Claude : c'est la session « observateur » qui les lit, génère l'index
+(`scripts/sessions-claude-index.py`) et l'envoie à `POST /api/admin/claude/import` avec le jeton
+`CLAUDE_INDEX_JETON`. Mise à jour chaque nuit, ou à la demande (« mets à jour l'index des sessions »). Des pièces
+jointes, seuls le nom et le type sont gardés, pas le contenu ; les secrets évidents (jetons, mots de passe collés)
+sont masqués.
+
+Mise en place : `git pull && make deploy && make claude-jeton`, puis donner le jeton affiché à la session
+observateur par son formulaire sécurisé. L'index est gardé dans `sessions_claude.json`, à côté des comptes (volume
+Docker `comptes`), jamais dans git.
+
 ## À côté : tableau de bord santé perso (`mint-health/`)
 
 Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://health.touplitoui.me` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).

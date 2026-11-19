@@ -7,6 +7,7 @@
 //! du patient n'est jamais envoyée ici.
 
 mod admin;
+mod sessions_claude;
 mod bigquery;
 mod comptes;
 mod pricing;
@@ -54,6 +55,8 @@ pub struct AppState {
     pub comptes_jeton: Option<Arc<str>>,
     /// Espace admin (stats Instagram, voir admin.rs) ; None sans BQ_CLE ni ADMIN_DONNEES_DIR : /api/admin répond 404
     pub admin: Option<Arc<Admin>>,
+    /// Index des sessions Claude Code affiché dans l'espace admin (voir sessions_claude.rs)
+    pub claude: Arc<sessions_claude::IndexClaude>,
 }
 
 pub struct Config {
@@ -240,7 +243,11 @@ async fn main() {
         comptes: Arc::new(Comptes::new(config.comptes_file.clone())),
         comptes_jeton: env::var("COMPTES_JETON").ok().filter(|j| j.len() >= 32).map(Into::into),
         admin: admin::depuis_env().map(Arc::new),
+        claude: Arc::new(sessions_claude::IndexClaude::depuis_env()),
     };
+    if !state.claude.import_ouvert() {
+        tracing::info!("CLAUDE_INDEX_JETON absent (ou moins de 32 caractères) : import des sessions Claude fermé");
+    }
     match &state.admin {
         Some(a) => tracing::info!("espace admin ouvert ({})", a.description()),
         None => tracing::info!("espace admin fermé (ni BQ_CLE ni ADMIN_DONNEES_DIR)"),
@@ -288,6 +295,10 @@ mod tests {
                 comptes: Arc::new(Comptes::new(comptes_file)),
                 comptes_jeton: Some(JETON.into()),
                 admin: admin.map(Arc::new),
+                claude: Arc::new(sessions_claude::IndexClaude::new(
+                    std::env::temp_dir().join(format!("claude-index-{}.json", std::process::id())),
+                    Some(JETON.into()),
+                )),
             },
             "../frontend/build".into(),
         )
@@ -372,6 +383,53 @@ mod tests {
         assert!(json.get("hash").is_none());
         assert_eq!(app.clone().oneshot(demande(JETON, "mauvais")).await.unwrap().status(), 401);
         assert_eq!(app.oneshot(demande("pas-le-bon-jeton", "motdepasse")).await.unwrap().status(), 403);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn index_des_sessions_claude() {
+        let dir = std::env::temp_dir().join(format!("claude-index-api-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("comptes.json");
+        comptes::ecrire(
+            &file,
+            &[comptes::Compte { nom: "nico".into(), hash: comptes::hacher("motdepasse"), roles: vec!["admin".into()] }],
+        )
+        .unwrap();
+        let app = test_app_admin(file, Some(Admin::new(admin::Source::Fichiers(dir.clone()))));
+        let importer = |jeton: &str, corps: &str| {
+            Request::post("/api/admin/claude/import")
+                .header("authorization", format!("Bearer {jeton}"))
+                .header("content-type", "application/json")
+                .body(Body::from(corps.to_owned()))
+                .unwrap()
+        };
+        let lire = |cookie: &str| Request::get("/api/admin/claude").header("cookie", cookie).body(Body::empty()).unwrap();
+        let index = r#"{"genere_le":"2026-11-19T10:00:00Z","sessions":[{"id":"session_01abc","titre":"Music video"}]}"#;
+
+        // Import : bon jeton et index valide seulement
+        assert_eq!(app.clone().oneshot(importer("pas-le-bon", index)).await.unwrap().status(), 403);
+        assert_eq!(app.clone().oneshot(importer(JETON, r#"{"sessions":[{"id":"x"}]}"#)).await.unwrap().status(), 400);
+        assert_eq!(app.clone().oneshot(importer(JETON, index)).await.unwrap().status(), 204);
+
+        // Lecture : session admin obligatoire
+        assert_eq!(app.clone().oneshot(lire("")).await.unwrap().status(), 401);
+        let res = app
+            .clone()
+            .oneshot(
+                Request::post("/api/admin/connexion")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"nom":"nico","mot_de_passe":"motdepasse"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let cookie = res.headers()["set-cookie"].to_str().unwrap().split(';').next().unwrap().to_owned();
+        let res = app.oneshot(lire(&cookie)).await.unwrap();
+        assert_eq!(res.status(), 200);
+        assert_eq!(res.headers()["cache-control"], "no-store");
+        let corps: serde_json::Value = serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(corps["sessions"][0]["titre"], "Music video");
         std::fs::remove_dir_all(&dir).ok();
     }
 
