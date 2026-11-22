@@ -37,7 +37,10 @@ REGLAGES_DEFAUT = {
     # Jours de consommation déduits après un achat (boutique / message), sans réponse du soir
     "achat_jours": 14,
     "achat_rue_jours": 3,
+    # Humeur de -3 (très bas) à +3 (trop haut) : à partir de ce seuil (en valeur absolue), zone critique
+    "seuil_critique": 2,
 }
+HUMEURS = range(-3, 4)
 SOURCES_DEDUITES = {"gmail", "notif", "whatsapp"}
 KINDS = {"conso", "achat", "mention"}
 
@@ -64,13 +67,56 @@ CREATE TABLE IF NOT EXISTS conso_events (
     UNIQUE (source, ref, substance)
 );
 CREATE INDEX IF NOT EXISTS conso_events_day ON conso_events (day);
--- Réponse du soir : niveaux {code: 1-3} (vide = rien pris), moral 1-5
+-- Réponse du soir : niveaux {code: 1-3} (vide = rien pris), humeur de -3 (très bas) à +3 (trop haut)
 CREATE TABLE IF NOT EXISTS conso_jours (
     day        date PRIMARY KEY,
     niveaux    jsonb       NOT NULL DEFAULT '{}',
-    moral      smallint    CHECK (moral BETWEEN 1 AND 5),
+    moral      smallint,
     note       text,
     repondu_at timestamptz NOT NULL DEFAULT now()
+);
+-- Ancienne échelle 1-5 (versions de test) -> -2..+2, puis contrainte -3..+3
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'conso_jours_moral_check'
+               AND pg_get_constraintdef(oid) LIKE '%1 AND 5%') THEN
+        ALTER TABLE conso_jours DROP CONSTRAINT conso_jours_moral_check;
+        UPDATE conso_jours SET moral = moral - 3 WHERE moral IS NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'conso_jours_moral_check') THEN
+        ALTER TABLE conso_jours ADD CONSTRAINT conso_jours_moral_check CHECK (moral BETWEEN -3 AND 3);
+    END IF;
+END $$;
+-- Activité par jour calculée sur le PC (messages WhatsApp : nombres seulement, jamais le texte)
+CREATE TABLE IF NOT EXISTS activite_jours (
+    day      date NOT NULL,
+    source   text NOT NULL,
+    envoyes  integer NOT NULL DEFAULT 0,
+    recus    integer NOT NULL DEFAULT 0,
+    nuit     integer NOT NULL DEFAULT 0,   -- messages envoyés entre 1 h et 5 h
+    contacts integer NOT NULL DEFAULT 0,   -- discussions distinctes où tu as écrit
+    PRIMARY KEY (day, source)
+);
+-- Rétro : une carte d'aide-mémoire par mois (préparée sur le PC) et tes notes
+CREATE TABLE IF NOT EXISTS retro_cartes (
+    mois  date PRIMARY KEY,
+    carte jsonb       NOT NULL,
+    maj   timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS moral_retro (
+    mois       date PRIMARY KEY,
+    moyenne    smallint CHECK (moyenne BETWEEN -3 AND 3),
+    pic_bas    smallint CHECK (pic_bas BETWEEN -3 AND 3),
+    pic_haut   smallint CHECK (pic_haut BETWEEN -3 AND 3),
+    note       text,
+    repondu_at timestamptz NOT NULL DEFAULT now()
+);
+-- Humeur estimée par le modèle (modele.py), une ligne par jour
+CREATE TABLE IF NOT EXISTS moral_estime (
+    day    date PRIMARY KEY,
+    estime real NOT NULL,
+    zone   text NOT NULL,
+    maj    timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS conso_reglages (
     cle    text PRIMARY KEY,
@@ -136,60 +182,64 @@ WHERE d.day <= (now() AT TIME ZONE '{tz}')::date
   AND NOT EXISTS (SELECT 1 FROM conso_jours j WHERE j.day = d.day)
   AND NOT EXISTS (SELECT 1 FROM conso_events p WHERE p.day = d.day AND p.kind = 'conso' AND p.confiance = 'explicite');
 
--- Une ligne par jour depuis 2020 : niveau psychoactif max, confiance, substances.
+-- Une ligne par jour depuis 2020 : niveau psychoactif max, confiance, substances, humeur du soir.
 CREATE VIEW conso_quotidien AS
 SELECT g.day,
        coalesce(max(s.psychoactivite) FILTER (WHERE c.substance IS NOT NULL), 0) AS psychoactivite,
        coalesce(max(c.niveau) FILTER (WHERE s.psychoactivite >= 2), 0) AS niveau_thc,
        coalesce(max(c.niveau), 0) AS niveau_max,
-       CASE WHEN bool_or(c.confiance = 'explicite')
-                 OR EXISTS (SELECT 1 FROM conso_jours j WHERE j.day = g.day) THEN 'explicite'
+       CASE WHEN bool_or(c.confiance = 'explicite') OR j.day IS NOT NULL THEN 'explicite'
             WHEN bool_or(c.confiance = 'deduit') THEN 'deduit'
             ELSE 'inconnu' END AS confiance,
        string_agg(DISTINCT coalesce(s.nom, c.substance), ', ') AS substances,
-       (SELECT moral FROM conso_jours j WHERE j.day = g.day) AS moral
-FROM generate_series(DATE '2020-01-01', (now() AT TIME ZONE '{tz}')::date, interval '1 day') AS g(day)
+       j.moral
+FROM (SELECT generate_series(DATE '2020-01-01', (now() AT TIME ZONE '{tz}')::date, interval '1 day')::date AS day) g
 LEFT JOIN conso_jour_substance c ON c.day = g.day
 LEFT JOIN conso_substances s ON s.code = c.substance
-GROUP BY g.day;
+LEFT JOIN conso_jours j ON j.day = g.day
+GROUP BY g.day, j.day, j.moral;
 
--- Indice de moral (0-100) : chaque donnée comparée à ta moyenne des 30 jours précédents
--- (écart en nombre d'écarts-types), puis moyenne des données disponibles ce jour-là.
--- Sens : sommeil, pas, VFC vers le haut = mieux ; FC au repos, conso psychoactive = moins bien.
+-- Données du jour pour l'humeur (lues par modele.py et Grafana) : écarts à ta moyenne des 30 jours précédents
+-- (en écarts-types, sans sens « mieux / moins bien » : une phase haute peut baisser le sommeil et monter l'activité),
+-- note du jour, note du mois (Rétro) et humeur estimée par le modèle.
 CREATE VIEW moral_quotidien AS
-WITH base AS (
-    SELECT q.day::date AS day, q.moral,
-           (SELECT max(minutes_asleep) FROM sleep_best s
-             WHERE s.main_night AND (s.end_time AT TIME ZONE '{tz}')::date = q.day) AS sommeil,
-           (SELECT avg(value) FROM daily_best WHERE day = q.day AND metric = 'steps.countSum') AS pas,
-           (SELECT avg(value) FROM daily_best WHERE day = q.day AND metric LIKE 'daily-resting-heart-rate.%') AS fc_repos,
-           (SELECT avg(value) FROM daily_best WHERE day = q.day AND metric LIKE 'daily-heart-rate-variability.%') AS vfc,
-           CASE WHEN q.confiance = 'inconnu' THEN NULL ELSE q.niveau_thc END AS conso
-    FROM conso_quotidien q
+WITH nuits AS (
+    SELECT (end_time AT TIME ZONE '{tz}')::date AS day, max(minutes_asleep) AS sommeil
+    FROM sleep_best WHERE main_night GROUP BY 1
 ),
-z AS (
-    SELECT b.*,
-        (sommeil  - avg(sommeil)  OVER w) / nullif(stddev_samp(sommeil)  OVER w, 0) AS z_sommeil,
-        (pas      - avg(pas)      OVER w) / nullif(stddev_samp(pas)      OVER w, 0) AS z_pas,
-        -(fc_repos - avg(fc_repos) OVER w) / nullif(stddev_samp(fc_repos) OVER w, 0) AS z_fc,
-        (vfc      - avg(vfc)      OVER w) / nullif(stddev_samp(vfc)      OVER w, 0) AS z_vfc,
-        -(conso   - avg(conso)    OVER w) / nullif(stddev_samp(conso)    OVER w, 0) AS z_conso
-    FROM base b
-    WINDOW w AS (ORDER BY day ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING)
+metriques AS (
+    SELECT day,
+           avg(value) FILTER (WHERE metric = 'steps.countSum') AS pas,
+           avg(value) FILTER (WHERE metric LIKE 'daily-resting-heart-rate.%') AS fc_repos,
+           avg(value) FILTER (WHERE metric LIKE 'daily-heart-rate-variability.%') AS vfc
+    FROM daily_best GROUP BY day
+),
+activite AS (
+    SELECT day, sum(envoyes) AS envoyes, sum(nuit) AS nuit, sum(contacts) AS contacts
+    FROM activite_jours GROUP BY day
+),
+base AS (
+    SELECT q.day, q.moral, n.sommeil, m.pas, m.fc_repos, m.vfc,
+           CASE WHEN q.confiance = 'inconnu' THEN NULL ELSE q.niveau_thc END AS conso,
+           a.envoyes, a.nuit, a.contacts
+    FROM conso_quotidien q
+    LEFT JOIN nuits n ON n.day = q.day
+    LEFT JOIN metriques m ON m.day = q.day
+    LEFT JOIN activite a ON a.day = q.day
 )
-SELECT day, moral, sommeil, pas, fc_repos, vfc, conso,
-       z_sommeil, z_pas, z_fc, z_vfc, z_conso,
-       CASE WHEN n > 0 THEN least(100, greatest(0, 50 + 15 * total / n)) END AS indice
-FROM (
-    SELECT z.*,
-        (CASE WHEN z_sommeil IS NULL THEN 0 ELSE 1 END + CASE WHEN z_pas IS NULL THEN 0 ELSE 1 END
-       + CASE WHEN z_fc IS NULL THEN 0 ELSE 1 END + CASE WHEN z_vfc IS NULL THEN 0 ELSE 1 END
-       + CASE WHEN z_conso IS NULL THEN 0 ELSE 1 END) AS n,
-        coalesce(least(greatest(z_sommeil, -3), 3), 0) + coalesce(least(greatest(z_pas, -3), 3), 0)
-      + coalesce(least(greatest(z_fc, -3), 3), 0) + coalesce(least(greatest(z_vfc, -3), 3), 0)
-      + coalesce(least(greatest(z_conso, -3), 3), 0) AS total
-    FROM z
-) t;
+SELECT b.*,
+    (sommeil  - avg(sommeil)  OVER w) / nullif(stddev_samp(sommeil)  OVER w, 0) AS z_sommeil,
+    (pas      - avg(pas)      OVER w) / nullif(stddev_samp(pas)      OVER w, 0) AS z_pas,
+    (fc_repos - avg(fc_repos) OVER w) / nullif(stddev_samp(fc_repos) OVER w, 0) AS z_fc,
+    (vfc      - avg(vfc)      OVER w) / nullif(stddev_samp(vfc)      OVER w, 0) AS z_vfc,
+    (envoyes  - avg(envoyes)  OVER w) / nullif(stddev_samp(envoyes)  OVER w, 0) AS z_envoyes,
+    (nuit     - avg(nuit)     OVER w) / nullif(stddev_samp(nuit)     OVER w, 0) AS z_nuit,
+    r.moyenne AS moral_mois, r.pic_bas AS moral_mois_bas, r.pic_haut AS moral_mois_haut,
+    e.estime, e.zone
+FROM base b
+LEFT JOIN moral_retro r ON r.mois = date_trunc('month', b.day)::date
+LEFT JOIN moral_estime e ON e.day = b.day
+WINDOW w AS (ORDER BY b.day ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING);
 
 DO $$
 BEGIN
@@ -380,7 +430,7 @@ class Prise(BaseModel):
 class Jour(BaseModel):
     day: date | None = None
     niveaux: dict[str, int] = Field(default_factory=dict)
-    moral: int | None = Field(None, ge=1, le=5)
+    moral: int | None = Field(None, ge=-3, le=3)
     note: str | None = Field(None, max_length=500)
 
 
@@ -389,6 +439,7 @@ class Reglages(BaseModel):
     push_actif: bool | None = None
     achat_jours: int | None = Field(None, ge=0, le=60)
     achat_rue_jours: int | None = Field(None, ge=0, le=30)
+    seuil_critique: int | None = Field(None, ge=1, le=3)
 
 
 async def _codes() -> set[str]:
@@ -501,15 +552,15 @@ async def ingest_notification(
 
 class EvenementImport(BaseModel):
     at: datetime
-    substance: str = Field(max_length=20)
     kind: str
     ref: str = Field(max_length=64)
     mots: list[str] = Field(default_factory=list, max_length=20)
+    substance: str = Field(max_length=40)
     auteur: str | None = Field(None, pattern="^(moi|autre)$")
 
 
 class Import(BaseModel):
-    source: str = Field(pattern="^(whatsapp|sms|msn)$")
+    source: str = Field(pattern="^(whatsapp|sms|msn|banque)$")
     evenements: list[EvenementImport] = Field(max_length=5000)
 
 
@@ -522,7 +573,13 @@ async def ingest_conso(
     codes = await _codes()
     rows = []
     for e in body.evenements:
-        if e.substance not in codes or e.kind not in KINDS:
+        if e.substance not in codes:
+            # nom libre (« CBC », « Fleurs HPX ») -> code du catalogue
+            trouve = [m for m in sb.molecules(e.substance) if m in codes]
+            if not trouve:
+                continue
+            e.substance = trouve[0]
+        if e.kind not in KINDS:
             continue
         at = e.at if e.at.tzinfo else e.at.replace(tzinfo=config.TZ)
         rows.append(
@@ -582,7 +639,7 @@ self.addEventListener('push', (event) => {
 	let d = {};
 	try { d = event.data ? event.data.json() : {}; } catch (_) {}
 	event.waitUntil(self.registration.showNotification(d.titre || 'Ta journée', {
-		body: d.texte || 'Moral et conso du jour : 10 secondes.',
+		body: d.texte || 'Humeur et conso du jour : 10 secondes.',
 		icon: 'icon.svg',
 		badge: 'icon.svg',
 		tag: d.tag || 'conso-jour',

@@ -10,7 +10,8 @@ import hmac
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from . import config, conso, gmail, health_connect, memos, oauth, push, store, sync
+from . import config, conso, gmail, health_connect, memos, modele, oauth, push, store, sync
+from . import retro  # noqa: F401  (enregistre les routes de la Rétro)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -33,9 +34,10 @@ async def lifespan(app: FastAPI):
 
 
 async def conso_loop() -> None:
-    """Notification du soir (vérifiée chaque minute) et lecture des achats Gmail (horaire)."""
+    """Notification du soir (vérifiée chaque minute), achats Gmail (horaire), modèle d'humeur (quotidien)."""
     log = logging.getLogger("healthsync")
     dernier_gmail = 0.0
+    dernier_modele = None
     while True:
         try:
             await push.tick()
@@ -48,6 +50,13 @@ async def conso_loop() -> None:
                 await gmail.run()
             except Exception:
                 log.exception("Gmail : échec")
+        aujourdhui = datetime.now(config.TZ).date()
+        if dernier_modele != aujourdhui:  # modèle d'humeur : une fois par jour (et au démarrage)
+            dernier_modele = aujourdhui
+            try:
+                await modele.entrainer()
+            except Exception:
+                log.exception("Modèle d'humeur : échec")
         await asyncio.sleep(60)
 
 

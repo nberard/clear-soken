@@ -45,9 +45,11 @@
 	.cta:active { transform: scale(.98); }
 
 	/* Question du soir */
-	.moods { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; margin-bottom: 1rem; }
-	.moods button { border: 2px solid transparent; background: var(--soft); border-radius: 14px; padding: .5rem 0 .35rem; font-size: 1.7rem; line-height: 1.1; }
-	.moods button span { display: block; font-size: .68rem; color: var(--muted); }
+	.moods { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; margin-bottom: 1rem; }
+	.moods button { border: 2px solid transparent; background: var(--soft); border-radius: 12px; padding: .5rem 0 .4rem; font-size: 1.15rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+	.moods button span { display: block; font-size: .6rem; font-weight: 500; color: var(--muted); margin-top: .2rem; }
+	.moods button.crit { color: var(--bad); }
+	.moods button.crit[aria-pressed="true"] { border-color: var(--bad); background: #3a2422; }
 	.moods button[aria-pressed="true"] { border-color: var(--accent); background: #26324a; }
 	.subs { display: grid; gap: .45rem; }
 	.sub { display: grid; gap: .45rem; background: var(--soft); border-radius: 14px; padding: .6rem .6rem .6rem .8rem; }
@@ -91,7 +93,7 @@
 <main>
 	<header>
 		<h1>Ma journée</h1>
-		<a id="grafana" href="#">Historique ↗</a>
+		<span><a href="retro/app">Rétro</a> · <a id="grafana" href="#">Historique ↗</a></span>
 	</header>
 
 	<section class="card" aria-live="polite">
@@ -112,12 +114,15 @@
 
 	<section class="card" id="soir">
 		<h2 id="soir-titre">Ma journée</h2>
-		<div class="moods" role="group" aria-label="Moral du jour">
-			<button data-m="1" aria-pressed="false">😞<span>très bas</span></button>
-			<button data-m="2" aria-pressed="false">🙁<span>bas</span></button>
-			<button data-m="3" aria-pressed="false">😐<span>moyen</span></button>
-			<button data-m="4" aria-pressed="false">🙂<span>bien</span></button>
-			<button data-m="5" aria-pressed="false">😄<span>très bien</span></button>
+		<div class="muted" style="margin-bottom:.4rem">Humeur du jour</div>
+		<div class="moods" role="group" aria-label="Humeur du jour, de -3 très bas à +3 trop haut">
+			<button data-m="-3" aria-pressed="false">−3<span>critique</span></button>
+			<button data-m="-2" aria-pressed="false">−2<span>bas</span></button>
+			<button data-m="-1" aria-pressed="false">−1<span>un peu bas</span></button>
+			<button data-m="0" aria-pressed="false">0<span>stable</span></button>
+			<button data-m="1" aria-pressed="false">+1<span>bien</span></button>
+			<button data-m="2" aria-pressed="false">+2<span>haut</span></button>
+			<button data-m="3" aria-pressed="false">+3<span>trop haut</span></button>
 		</div>
 		<div class="subs" id="subs"></div>
 		<div class="row">
@@ -217,7 +222,10 @@ function rendre() {
 	// Question du soir
 	const a = E.aujourdhui;
 	$('#soir-titre').textContent = jour === E.date ? 'Ma journée' : `Journée du ${fmtDate(new Date(jour))}`;
-	document.querySelectorAll('.moods button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.m === moral)));
+	document.querySelectorAll('.moods button').forEach((b) => {
+		b.setAttribute('aria-pressed', String(+b.dataset.m === moral));
+		b.classList.toggle('crit', Math.abs(+b.dataset.m) >= (E.reglages.seuil_critique || 2));
+	});
 	const subs = $('#subs'); subs.innerHTML = '';
 	const liste = [...new Set([...proposees().slice(0, 5), ...Object.keys(niveaux)])];
 	for (const code of liste) {
@@ -242,7 +250,7 @@ function rendre() {
 		el.className = 'day' + (d.day === E.date ? ' today' : '');
 		el.dataset.c = d.confiance;
 		el.dataset.p = d.confiance === 'inconnu' ? 'x' : (d.thc > 0 ? 3 : (d.niveau > 0 ? Math.min(d.psy, 1) : 0));
-		el.title = `${d.day} · ${d.confiance}${d.substances ? ' · ' + d.substances : ''}${d.moral ? ' · moral ' + d.moral + '/5' : ''}`;
+		el.title = `${d.day} · ${d.confiance}${d.substances ? ' · ' + d.substances : ''}${d.moral != null ? ' · humeur ' + (d.moral > 0 ? '+' : '') + d.moral : ''}`;
 		days.append(el);
 	}
 	$('#heure').value = E.reglages.push_heure;
@@ -295,7 +303,7 @@ $('#sheet-ok').onclick = async () => {
 // --- Question du soir ---
 document.querySelectorAll('.moods button').forEach((b) => (b.onclick = () => { moral = +b.dataset.m; rendre(); }));
 async function enregistrerJour(rien) {
-	if (!moral) { $('#soir-statut').innerHTML = '<span class="err">Choisis d\'abord ton moral.</span>'; return; }
+	if (moral == null) { $('#soir-statut').innerHTML = '<span class="err">Choisis d\'abord ton humeur.</span>'; return; }
 	const n = rien ? {} : Object.fromEntries(Object.entries(niveaux).filter(([, v]) => v > 0));
 	try {
 		await api('jour', { method: 'POST', body: JSON.stringify({ day: jour, moral, niveaux: n }) });

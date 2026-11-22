@@ -132,7 +132,8 @@ def test_api_complete():
         await memos.init()
         await conso.init()
         async with await store.connect() as c:
-            await c.execute("TRUNCATE conso_events, conso_jours, conso_reglages, conso_sources_vues, push_abonnements")
+            await c.execute("TRUNCATE conso_events, conso_jours, conso_reglages, conso_sources_vues, push_abonnements, "
+                            "activite_jours, retro_cartes, moral_retro, moral_estime")
 
     asyncio.run(prep())
     c = TestClient(main.app)  # sans « with » : ne lance pas les boucles de fond
@@ -151,11 +152,12 @@ def test_api_complete():
     assert e["derniere_prise_thc"].startswith(il_y_a_3j[:16])
     assert e["en_cours"][0]["code"] == "thc"
 
-    # Réponse du soir : CBD seulement, moral 4
-    r = c.post("/conso/jour", json={"moral": 4, "niveaux": {"cbd": 2, "inconnue": 1, "thc": 0}})
+    # Réponse du soir : CBD seulement, humeur +1 (échelle -3 … +3)
+    assert c.post("/conso/jour", json={"moral": 4}).status_code == 422
+    r = c.post("/conso/jour", json={"moral": 1, "niveaux": {"cbd": 2, "inconnue": 1, "thc": 0}})
     assert r.json()["niveaux"] == {"cbd": 2}
     e = c.get("/conso/etat").json()
-    assert e["aujourdhui"]["repondu"] and e["aujourdhui"]["moral"] == 4
+    assert e["aujourdhui"]["repondu"] and e["aujourdhui"]["moral"] == 1
     today = e["jours"][-1]
     assert today["confiance"] == "explicite" and today["thc"] == 0 and today["niveau"] == 2
 
@@ -196,6 +198,60 @@ def test_api_complete():
     assert r["push_heure"] == "22:15"
     assert c.put("/conso/reglages", json={"push_heure": "25:00"}).status_code == 422
 
+    # Nom libre de molécule depuis le PC (retraits « banque » : THC)
+    r = c.post("/ingest/conso", headers=h, json={"source": "banque", "evenements": [
+        {"at": "2022-05-02T12:00:00", "substance": "Fleurs CBC", "kind": "achat", "ref": "b1"},
+        {"at": "2022-05-03T12:00:00", "substance": "rien", "kind": "achat", "ref": "b2"},
+    ]}).json()
+    assert r == {"recus": 2, "ajoutes": 1}
+
+    # Rétro : cartes et activité envoyées par le PC, notes depuis la page
+    r = c.post("/ingest/retro", headers=h, json={"cartes": [
+        {"mois": "2021-03", "chronologie": ["▶ Exemple"], "agenda": ["Voyage"], "whatsapp": {"envoyes": 300, "jours": 31},
+         "resume": "Mois chargé."}]})
+    assert r.status_code == 200
+    # renvoi sans résumé : l'ancien est gardé
+    c.post("/ingest/retro", headers=h, json={"cartes": [{"mois": "2021-03", "agenda": ["Voyage"]}]})
+    assert c.post("/ingest/activite", headers=h, json={"source": "whatsapp", "jours": [
+        {"day": "2021-03-12", "envoyes": 40, "recus": 50, "nuit": 3, "contacts": 5}]}).json() == {"jours": 1}
+    assert c.put("/conso/retro/2021-03", json={"moyenne": 1, "pic_bas": 2}).status_code == 400  # pic bas > moyenne
+    assert c.put("/conso/retro/2021-03", json={"moyenne": 1, "pic_bas": -1, "pic_haut": 3}).json() == {"ok": True}
+    d = c.get("/conso/retro/donnees").json()
+    m = next(x for x in d["mois"] if x["mois"] == "2021-03")
+    assert m["carte"]["resume"] == "Mois chargé." and m["notes"]["pic_haut"] == 3
+    assert d["mois"][0]["mois"] == "2020-01" and d["seuil_critique"] == 2
+    assert "Rétro humeur" in c.get("/conso/retro/app").text
+
+    # Modèle : pas assez de notes au départ
+    assert c.post("/conso/modele/entrainer").json()["status"] == "pas_assez_de_notes"
+
     # Page et service worker servis
     assert "Ma journée" in c.get("/conso/app").text
     assert "showNotification" in c.get("/conso/sw.js").text
+
+
+def test_modele_apprend_un_lien_simple():
+    """Données inventées : messages de nuit en hausse = humeur haute, sommeil en baisse = humeur basse."""
+    import random
+    from datetime import date as d_
+
+    from healthsync import modele
+
+    random.seed(1)
+    rows = []
+    for k in range(120):
+        nuit, sommeil = random.gauss(0, 1), random.gauss(0, 1)
+        humeur = max(-3, min(3, round(1.2 * nuit + 0.8 * sommeil)))
+        rows.append({"day": d_(2024, 1, 1) + timedelta(days=k), "z_nuit": nuit, "z_sommeil": sommeil,
+                     "moral": humeur if k % 3 == 0 else None, "moral_mois": None})
+    m = modele.entrainer_sur(rows)
+    assert m and m["n_jours"] == 40 and m["r2"] > 0.6
+    assert m["coefs"]["z_nuit"] > 0.5 and m["coefs"]["z_sommeil"] > 0.3
+    assert modele.predire(m, {"z_nuit": 2.5, "z_sommeil": 0}) > 1.5
+    assert modele.zone(2.4, 2) == "critique_haut" and modele.zone(-1.2, 2) == "bas" and modele.zone(0.3, 2) == "stable"
+
+
+def test_modele_refuse_sans_notes():
+    from healthsync import modele
+
+    assert modele.entrainer_sur([{"day": datetime(2024, 1, 1), "moral": 1, "moral_mois": None}]) is None

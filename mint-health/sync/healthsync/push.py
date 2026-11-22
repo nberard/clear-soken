@@ -165,6 +165,6 @@ async def tick() -> None:
     if not doit_envoyer(now, reg["push_heure"], reg.get("push_dernier"), repondu):
         return
     await conso.set_reglage("push_dernier", now.date().isoformat())
-    res = await envoyer({"titre": "Ta journée", "texte": "Moral et conso du jour : 10 secondes.",
+    res = await envoyer({"titre": "Ta journée", "texte": "Humeur et conso du jour : 10 secondes.",
                          "url": f"app?jour={now.date().isoformat()}"})
     await store.log("push", res.get("envoyes", 0) > 0, res.get("envoyes", 0), json.dumps(res))

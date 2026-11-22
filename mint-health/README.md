@@ -217,7 +217,7 @@ Exemple : `curl -X POST -H 'Content-Type: audio/ogg' --data-binary @memo.ogg 'lo
 ## Ma journée : conso et moral
 
 Remplace une appli de type « jours sans THC » : rien à configurer, la substance en cours est déduite
-des achats, et chaque soir une notification pose deux questions (moral 1-5, conso du jour).
+des achats, et chaque soir une notification pose deux questions (humeur de −3 à +3, conso du jour).
 
 **Page téléphone** : `https://HEALTH_HOST/health/api/conso/app` → menu ⋮ → **Ajouter à l'écran d'accueil**,
 puis **Réglages → Notifications → Activer**. Heure de la question réglable (23 h 30 par défaut).
@@ -226,7 +226,7 @@ puis **Réglages → Notifications → Activer**. Heure de la question réglable
 |---|---|
 | Compteur | « jours sans THC » depuis la dernière prise de THC **ou équivalent** (THC-X, THCP, HHC, HPX…), calculé à partir de tes saisies |
 | Je viens de consommer | enregistre l'heure exacte (« Plus tôt ? » pour une prise passée, ex. reprendre le compteur d'une autre appli) |
-| Ma journée | moral 1-5 + niveau par substance ; **prime toujours** sur ce qui a été déduit |
+| Ma journée | humeur de −3 (très bas, critique) à +3 (trop haut, critique), 0 = stable, + niveau par substance ; **prime toujours** sur ce qui a été déduit |
 | 30 derniers jours | rouge = THC/équivalent, jaune = léger, vert = rien/non psychoactif, gris = inconnu, pâle = déduit |
 
 **Catalogue des molécules** (table `conso_substances`, modifiable) : psychoactivité 0-3. HPX, X2 et THC-X
@@ -249,13 +249,22 @@ sont marqués « à confirmer » (compositions non publiées). Une boutique lég
   pour voir le résumé par mois, puis sans `ESSAI` pour envoyer. Le texte ne quitte pas le PC ; il faut
   `HEALTH_HOST` et `CONSO_INGEST_TOKEN` dans `mint-health/.env` (ou `HEALTH_URL` / `CONSO_INGEST_TOKEN` en variables).
 
-### Indice de moral (dashboard « Moral et conso »)
+### Rétro : noter l'humeur depuis 2020
 
-Chaque jour, sommeil, pas, VFC (vers le haut = mieux), FC au repos et conso psychoactive (vers le bas = mieux)
-sont comparés à **ta moyenne des 30 jours précédents** ; l'indice (0-100, 50 = jour habituel) est leur moyenne.
-Le tableau « Ce qui va avec ton moral déclaré » montre, sur la période, ce qui suit vraiment tes notes 1-5 :
-après quelques semaines de réponses, il dira quelles données pondérer davantage. Repère personnel, pas un
-outil médical.
+Page `https://HEALTH_HOST/health/api/conso/retro/app` : une carte par mois (moments de la Chronologie, agenda,
+nombres de messages WhatsApp, retraits « conso », résumé de tes messages envoyés écrit par Claude, plus sommeil,
+pas et conso déjà connus ici) et trois notes de −3 à +3 : moyenne, pic bas, pic haut. Une frise colorée montre
+l'avancement. Les cartes sont préparées sur le PC par `clearmind-tools/social_analytics/retro_cards.py`
+(le texte des messages ne quitte pas le PC ; seul le résumé arrive ici).
+
+### Estimation de l'humeur (dashboard « Moral et conso »)
+
+Chaque nuit, un modèle (régression ridge, `modele.py`) apprend sur **tes** notes : notes du soir (poids 1) et
+notes des mois de la Rétro (poids faible). Variables : sommeil, pas, FC au repos, VFC, messages envoyés et de nuit
+(écarts à ta moyenne des 30 jours précédents, et leur carré : un sommeil très court peut aller avec une phase haute
+comme avec une phase basse), conso psychoactive. Il démarre dès 14 notes du soir ou 6 mois notés, et écrit une
+humeur estimée par jour avec sa zone (critique bas, bas, stable, haut, critique haut ; seuil `seuil_critique`,
+2 par défaut). Grafana montre l'estimée, tes notes et les zones critiques. Repère personnel, pas un outil médical.
 
 ## Données et dashboard
 

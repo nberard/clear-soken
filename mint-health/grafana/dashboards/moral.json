@@ -71,7 +71,7 @@
   },
   {
    "type": "stat",
-   "title": "Indice de moral (7 j)",
+   "title": "Humeur estimée (7 j, −3 à +3)",
    "gridPos": {
     "h": 4,
     "w": 6,
@@ -88,13 +88,13 @@
      "editorMode": "code",
      "format": "table",
      "rawQuery": true,
-     "rawSql": "SELECT avg(indice) AS value FROM moral_quotidien WHERE day > (now() AT TIME ZONE 'Europe/Paris')::date - 7"
+     "rawSql": "SELECT avg(estime) AS value FROM moral_quotidien WHERE day > (now() AT TIME ZONE 'Europe/Paris')::date - 7"
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "none",
-     "decimals": 0,
+     "decimals": 1,
      "color": {
       "mode": "fixed",
       "fixedColor": "#5B8DEF"
@@ -125,7 +125,7 @@
   },
   {
    "type": "stat",
-   "title": "Moral déclaré (7 j, sur 5)",
+   "title": "Humeur déclarée (7 j)",
    "gridPos": {
     "h": 4,
     "w": 6,
@@ -233,7 +233,7 @@
   },
   {
    "type": "timeseries",
-   "title": "Indice de moral (0-100) et moral déclaré (×20)",
+   "title": "Humeur : estimée, déclarée (jour) et souvenir du mois (Rétro)",
    "gridPos": {
     "h": 9,
     "w": 24,
@@ -250,25 +250,48 @@
      "editorMode": "code",
      "format": "time_series",
      "rawQuery": true,
-     "rawSql": "SELECT day::timestamptz AS time, indice AS \"Indice\", moral * 20 AS \"Moral déclaré\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) ORDER BY 1"
+     "rawSql": "SELECT day::timestamptz AS time, estime AS \"Estimée\", moral AS \"Déclarée\", moral_mois AS \"Mois (Rétro)\", moral_mois_bas AS \"Pic bas du mois\", moral_mois_haut AS \"Pic haut du mois\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) ORDER BY 1"
     }
    ],
    "fieldConfig": {
     "defaults": {
-     "min": 0,
-     "max": 100,
+     "min": -3,
+     "max": 3,
      "custom": {
       "lineWidth": 2,
       "spanNulls": false,
       "pointSize": 5,
-      "showPoints": "auto"
+      "showPoints": "auto",
+      "thresholdsStyle": {
+       "mode": "area"
+      }
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "rgba(224,104,90,0.18)",
+        "value": null
+       },
+       {
+        "color": "transparent",
+        "value": -1.99
+       },
+       {
+        "color": "rgba(224,104,90,0.18)",
+        "value": 2
+       }
+      ]
      }
     },
     "overrides": [
      {
       "matcher": {
        "id": "byName",
-       "options": "Indice"
+       "options": "Estimée"
       },
       "properties": [
        {
@@ -283,7 +306,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "Moral déclaré"
+       "options": "Déclarée"
       },
       "properties": [
        {
@@ -300,6 +323,58 @@
        {
         "id": "custom.pointSize",
         "value": 8
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Mois (Rétro)"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#73BF69"
+        }
+       },
+       {
+        "id": "custom.lineInterpolation",
+        "value": "stepAfter"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": "Pic .*"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "rgba(115,191,105,0.45)"
+        }
+       },
+       {
+        "id": "custom.lineInterpolation",
+        "value": "stepAfter"
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          6,
+          4
+         ]
+        }
+       },
+       {
+        "id": "custom.lineWidth",
+        "value": 1
        }
       ]
      }
@@ -319,7 +394,8 @@
     "type": "grafana-postgresql-datasource",
     "uid": "healthpg"
    },
-   "transparent": true
+   "transparent": true,
+   "description": "Zones rouges : au-delà du seuil critique (±2 par défaut). L'estimée vient du modèle entraîné sur tes notes."
   },
   {
    "type": "state-timeline",
@@ -511,7 +587,7 @@
   },
   {
    "type": "timeseries",
-   "title": "Composantes de l'indice (écart à ta moyenne 30 j, en écarts-types)",
+   "title": "Données du jour (écart à ta moyenne 30 j, en écarts-types)",
    "gridPos": {
     "h": 8,
     "w": 12,
@@ -528,7 +604,7 @@
      "editorMode": "code",
      "format": "time_series",
      "rawQuery": true,
-     "rawSql": "SELECT day::timestamptz AS time, z_sommeil AS \"Sommeil\", z_pas AS \"Pas\", z_fc AS \"FC repos (inversée)\", z_vfc AS \"VFC\", z_conso AS \"Conso (inversée)\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) ORDER BY 1"
+     "rawSql": "SELECT day::timestamptz AS time, z_sommeil AS \"Sommeil\", z_pas AS \"Pas\", z_fc AS \"FC repos\", z_vfc AS \"VFC\", z_envoyes AS \"Messages envoyés\", z_nuit AS \"Messages de nuit\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) ORDER BY 1"
     }
    ],
    "fieldConfig": {
@@ -596,7 +672,7 @@
   },
   {
    "type": "table",
-   "title": "Ce qui va avec ton moral déclaré (corrélation sur la période)",
+   "title": "Ce qui va avec ton humeur déclarée (corrélation sur la période)",
    "gridPos": {
     "h": 8,
     "w": 12,
@@ -613,7 +689,7 @@
      "editorMode": "code",
      "format": "table",
      "rawQuery": true,
-     "rawSql": "SELECT 'Sommeil' AS \"Donnée\", round(corr(moral, sommeil)::numeric, 2) AS \"Corrélation\", count(*) FILTER (WHERE moral IS NOT NULL AND sommeil IS NOT NULL) AS \"Jours\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Pas', round(corr(moral, pas)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND pas IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'FC au repos', round(corr(moral, fc_repos)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND fc_repos IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'VFC', round(corr(moral, vfc)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND vfc IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Conso THC / équivalent', round(corr(moral, conso)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND conso IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Indice calculé', round(corr(moral, indice)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND indice IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz)"
+     "rawSql": "SELECT 'Sommeil' AS \"Donnée\", round(corr(moral, sommeil)::numeric, 2) AS \"Corrélation\", count(*) FILTER (WHERE moral IS NOT NULL AND sommeil IS NOT NULL) AS \"Jours\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Pas', round(corr(moral, pas)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND pas IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'FC au repos', round(corr(moral, fc_repos)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND fc_repos IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'VFC', round(corr(moral, vfc)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND vfc IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Conso THC / équivalent', round(corr(moral, conso)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND conso IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Messages envoyés', round(corr(moral, envoyes)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND envoyes IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Humeur estimée', round(corr(moral, estime)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND estime IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz)"
     }
    ],
    "fieldConfig": {
@@ -625,7 +701,7 @@
    "options": {
     "showHeader": true
    },
-   "description": "Entre -1 et 1. Proche de 0 : pas de lien visible. Il faut au moins une vingtaine de jours renseignés pour que ça veuille dire quelque chose.",
+   "description": "Entre -1 et 1, sur l'échelle -3 (très bas) à +3 (trop haut). Une phase haute et une phase basse peuvent toutes deux baisser le sommeil : une corrélation proche de 0 ne veut pas dire « sans lien ». Il faut une vingtaine de jours notés au minimum.",
    "id": 10,
    "datasource": {
     "type": "grafana-postgresql-datasource",
@@ -645,6 +721,13 @@
    "title": "Saisie (Ma journée)",
    "type": "link",
    "url": "/api/conso/app",
+   "icon": "external link",
+   "targetBlank": true
+  },
+  {
+   "title": "Rétro (noter les mois)",
+   "type": "link",
+   "url": "/api/conso/retro/app",
    "icon": "external link",
    "targetBlank": true
   }

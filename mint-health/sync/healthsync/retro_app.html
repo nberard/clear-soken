@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16181d">
+<title>Rétro humeur</title>
+<link rel="icon" href="../icon.svg">
+<style>
+	:root {
+		--bg: #16181d; --surface: #1f2228; --soft: #2a2e36; --line: #353a44; --text: #e6e6e6; --muted: #9aa0a9;
+		--accent: #8ab4f8; --ok: #73bf69; --bad: #e0685a; --warn: #f2cc0c;
+		color-scheme: dark;
+	}
+	* { box-sizing: border-box; }
+	[hidden] { display: none !important; }
+	html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+	main { max-width: 620px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 1rem) 16px calc(env(safe-area-inset-bottom) + 2rem); }
+	header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+	h1 { font-size: 1.3rem; margin: 0; }
+	a { color: var(--accent); text-decoration: none; }
+	.muted { color: var(--muted); font-size: .88rem; }
+	button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+	button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+	.bar { height: 6px; background: var(--soft); border-radius: 3px; margin: .6rem 0 1rem; overflow: hidden; }
+	.bar i { display: block; height: 100%; background: var(--accent); }
+
+	/* Frise des mois */
+	.frise { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; margin-bottom: 1rem; }
+	.frise button { border: none; aspect-ratio: 1; border-radius: 4px; background: var(--soft); padding: 0; position: relative; }
+	.frise button.cur { outline: 2px solid var(--text); outline-offset: 1px; }
+	.frise .an { grid-column: 1 / -1; font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+
+	.card { background: var(--surface); border-radius: 18px; padding: 1rem; margin-bottom: 1rem; }
+	.nav { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .6rem; }
+	.nav h2 { margin: 0; font-size: 1.25rem; text-transform: capitalize; }
+	.nav button { border: none; background: var(--soft); border-radius: 12px; width: 2.6rem; height: 2.6rem; font-size: 1.2rem; }
+	h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: .9rem 0 .35rem; }
+	ul { margin: 0; padding-left: 1.1rem; }
+	li { margin: .1rem 0; }
+	.resume { white-space: pre-wrap; background: var(--soft); border-radius: 12px; padding: .7rem .8rem; font-size: .95rem; }
+	.stats { display: flex; flex-wrap: wrap; gap: .4rem; }
+	.stat { background: var(--soft); border-radius: 10px; padding: .3rem .6rem; font-size: .88rem; }
+	.stat b { font-variant-numeric: tabular-nums; }
+	details summary { color: var(--accent); cursor: pointer; font-size: .9rem; margin-top: .3rem; }
+
+	.note { margin-top: .9rem; }
+	.note .lbl { font-weight: 700; margin-bottom: .3rem; display: flex; justify-content: space-between; }
+	.scale { display: grid; grid-template-columns: repeat(7, 1fr); gap: .25rem; }
+	.scale button { border: 2px solid transparent; background: var(--soft); border-radius: 10px; height: 2.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+	.scale button[aria-pressed="true"] { border-color: var(--accent); background: #26324a; }
+	.scale button.crit { color: var(--bad); }
+	.scale button:disabled { opacity: .3; }
+	.legend { display: grid; grid-template-columns: repeat(7, 1fr); font-size: .62rem; color: var(--muted); text-align: center; margin-top: .2rem; }
+	textarea { width: 100%; font: inherit; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: .5rem .6rem; margin-top: .8rem; min-height: 2.6rem; }
+	.row { display: flex; gap: .6rem; margin-top: .9rem; }
+	.primary { flex: 1; border: none; border-radius: 14px; padding: .85rem; font-weight: 800; background: var(--accent); color: #0d1520; }
+	.ghost { border: none; border-radius: 14px; padding: .85rem 1rem; font-weight: 700; background: var(--soft); }
+	#statut { min-height: 1.3em; margin-top: .5rem; }
+	.err { color: var(--bad); }
+	.okc { color: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+	<header>
+		<h1>Rétro humeur</h1>
+		<a href="../app">Ma journée</a>
+	</header>
+	<p class="muted" id="progres" style="margin:.4rem 0 0"></p>
+	<div class="bar"><i id="barre" style="width:0"></i></div>
+	<div class="frise" id="frise" aria-label="Mois depuis 2020"></div>
+
+	<section class="card" id="carte">
+		<div class="nav">
+			<button id="prec" aria-label="Mois précédent">‹</button>
+			<h2 id="titre">…</h2>
+			<button id="suiv" aria-label="Mois suivant">›</button>
+		</div>
+		<div id="contenu" class="muted">Chargement…</div>
+
+		<div class="note" data-k="moyenne">
+			<div class="lbl"><span>Humeur moyenne du mois</span><span class="muted" id="v-moyenne"></span></div>
+			<div class="scale"></div>
+		</div>
+		<div class="note" data-k="pic_bas">
+			<div class="lbl"><span>Pic le plus bas</span><span class="muted" id="v-pic_bas"></span></div>
+			<div class="scale"></div>
+		</div>
+		<div class="note" data-k="pic_haut">
+			<div class="lbl"><span>Pic le plus haut</span><span class="muted" id="v-pic_haut"></span></div>
+			<div class="scale"></div>
+		</div>
+		<div class="legend"><span>critique</span><span>bas</span><span>un peu bas</span><span>stable</span><span>bien</span><span>haut</span><span>trop haut</span></div>
+		<textarea id="note" placeholder="Note libre (facultatif) : ce dont tu te souviens"></textarea>
+		<div class="row">
+			<button class="ghost" id="passer">Je ne sais pas</button>
+			<button class="primary" id="ok">Enregistrer et suivant</button>
+		</div>
+		<p class="muted" id="statut"></p>
+	</section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+let D = null, i = 0, notes = {};
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const signe = (v) => v == null ? '' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v);
+
+async function api(path, opts = {}) {
+	const r = await fetch(path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
+	if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+	return r.json();
+}
+
+function couleur(v) {
+	if (v == null) return 'var(--soft)';
+	const s = D.seuil_critique;
+	if (v <= -s) return '#c0392b'; if (v >= s) return '#d35400';
+	if (v < 0) return '#5b7bb5'; if (v > 0) return '#c9a43a';
+	return '#4c8f6a';
+}
+
+function frise() {
+	const f = $('#frise'); f.innerHTML = '';
+	let an = null;
+	D.mois.forEach((m, k) => {
+		const a = m.mois.slice(0, 4);
+		if (a !== an) { an = a; const t = document.createElement('div'); t.className = 'an'; t.textContent = a; f.append(t); }
+		const b = document.createElement('button');
+		b.style.background = couleur(m.notes.moyenne);
+		b.title = `${MOIS[+m.mois.slice(5) - 1]} ${a}${m.notes.moyenne != null ? ' · ' + signe(m.notes.moyenne) : ''}`;
+		b.className = k === i ? 'cur' : '';
+		b.onclick = () => { i = k; rendre(); };
+		f.append(b);
+	});
+	const n = D.mois.filter((m) => m.notes.moyenne != null).length;
+	$('#progres').textContent = `${n} / ${D.mois.length} mois notés`;
+	$('#barre').style.width = `${(100 * n) / D.mois.length}%`;
+}
+
+function liste(items, max = 8) {
+	if (!items || !items.length) return '<p class="muted">—</p>';
+	const li = (x) => `<li>${esc(x)}</li>`;
+	if (items.length <= max) return `<ul>${items.map(li).join('')}</ul>`;
+	return `<ul>${items.slice(0, max).map(li).join('')}</ul><details><summary>${items.length - max} de plus</summary><ul>${items.slice(max).map(li).join('')}</ul></details>`;
+}
+
+function rendre(reset = true) {
+	const m = D.mois[i], c = m.carte || {}, s = m.sante, w = c.whatsapp || {}, r = c.retraits || {};
+	$('#titre').textContent = `${MOIS[+m.mois.slice(5) - 1]} ${m.mois.slice(0, 4)}`;
+	$('#prec').disabled = i === 0; $('#suiv').disabled = i === D.mois.length - 1;
+	const stats = [];
+	if (w.envoyes != null) stats.push(`<span class="stat">💬 <b>${Math.round(w.envoyes / (w.jours || 30))}</b>/jour envoyés</span>`);
+	if (w.nuit) stats.push(`<span class="stat">🌙 <b>${w.nuit}</b> la nuit</span>`);
+	if (w.contacts) stats.push(`<span class="stat">👥 <b>${w.contacts}</b> discussions</span>`);
+	if (s.sommeil_h) stats.push(`<span class="stat">😴 <b>${s.sommeil_h}</b> h/nuit</span>`);
+	if (s.pas) stats.push(`<span class="stat">🚶 <b>${s.pas}</b> pas/j</span>`);
+	if (s.jours_thc) stats.push(`<span class="stat">🔴 <b>${s.jours_thc}</b> j THC/équiv.</span>`);
+	if (r.n) stats.push(`<span class="stat">🏧 <b>${r.n}</b> retrait(s) conso</span>`);
+	if (s.estime != null) stats.push(`<span class="stat">≈ humeur estimée <b>${signe(Math.round(s.estime))}</b></span>`);
+	$('#contenu').innerHTML = `
+		${c.resume ? `<h3>Tes messages ce mois-là (résumé)</h3><div class="resume">${esc(c.resume)}</div>` : ''}
+		<h3>Chronologie</h3>${liste(c.chronologie)}
+		<h3>Agenda</h3>${liste(c.agenda, 6)}
+		${stats.length ? `<h3>Chiffres</h3><div class="stats">${stats.join('')}</div>` : ''}
+		${!m.carte ? '<p class="muted">Pas encore de carte pour ce mois : lance retro_cards.py sur le PC.</p>' : ''}`;
+	if (reset) notes = { ...m.notes };
+	document.querySelectorAll('.note').forEach((box) => {
+		const k = box.dataset.k, sc = box.querySelector('.scale');
+		sc.innerHTML = '';
+		for (let v = -3; v <= 3; v++) {
+			const b = document.createElement('button');
+			b.textContent = signe(v) || '0';
+			if (Math.abs(v) >= D.seuil_critique) b.classList.add('crit');
+			b.setAttribute('aria-pressed', String(notes[k] === v));
+			// cohérence : pic bas ≤ moyenne ≤ pic haut
+			if (k === 'pic_bas' && notes.moyenne != null && v > notes.moyenne) b.disabled = true;
+			if (k === 'pic_haut' && notes.moyenne != null && v < notes.moyenne) b.disabled = true;
+			b.onclick = () => {
+				notes[k] = notes[k] === v ? null : v;
+				if (k === 'moyenne' && notes.moyenne != null) {
+					if (notes.pic_bas != null && notes.pic_bas > notes.moyenne) notes.pic_bas = null;
+					if (notes.pic_haut != null && notes.pic_haut < notes.moyenne) notes.pic_haut = null;
+				}
+				rendre(false);  // la frise ne change qu'une fois enregistré
+			};
+			sc.append(b);
+		}
+	});
+	if (reset) $('#note').value = notes.note || '';
+	$('#statut').textContent = '';
+	frise();
+}
+
+async function enregistrer(avancer) {
+	const m = D.mois[i];
+	notes.note = $('#note').value.trim() || null;
+	try {
+		await api(`../retro/${m.mois}`, { method: 'PUT', body: JSON.stringify(notes) });
+		m.notes = { ...notes };
+		if (avancer && i < D.mois.length - 1) i++;
+		rendre();
+		$('#statut').innerHTML = '<span class="okc">✓ Enregistré</span>';
+	} catch (e) { $('#statut').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+
+$('#prec').onclick = () => { i--; rendre(); };
+$('#suiv').onclick = () => { i++; rendre(); };
+$('#ok').onclick = () => enregistrer(true);
+$('#passer').onclick = () => { if (i < D.mois.length - 1) { i++; rendre(); } };
+
+(async () => {
+	try {
+		D = await api('../retro/donnees');
+		const k = D.mois.findIndex((m) => m.notes.moyenne == null);  // premier mois pas encore noté
+		i = k < 0 ? D.mois.length - 1 : k;
+		rendre();
+	} catch (e) { $('#contenu').innerHTML = `<span class="err">Impossible de charger : ${esc(e.message)}</span>`; }
+})();
+</script>
+</body>
+</html>
