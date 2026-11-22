@@ -10,7 +10,7 @@ import hmac
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from . import config, health_connect, memos, oauth, store, sync
+from . import config, conso, gmail, health_connect, memos, oauth, push, store, sync
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -21,16 +21,45 @@ async def lifespan(app: FastAPI):
         try:
             await store.init()
             await memos.init()
+            await conso.init()
             break
         except Exception:
+            logging.getLogger("healthsync").exception("Initialisation de la base (nouvel essai)")
             await asyncio.sleep(2)
-    task = asyncio.create_task(sync.loop())
+    tasks = [asyncio.create_task(sync.loop()), asyncio.create_task(conso_loop())]
     yield
-    task.cancel()
+    for t in tasks:
+        t.cancel()
+
+
+async def conso_loop() -> None:
+    """Notification du soir (vérifiée chaque minute) et lecture des achats Gmail (horaire)."""
+    log = logging.getLogger("healthsync")
+    dernier_gmail = 0.0
+    while True:
+        try:
+            await push.tick()
+        except Exception:
+            log.exception("Notification du soir : échec")
+        loop_time = asyncio.get_running_loop().time()
+        if config.GMAIL_SYNC and loop_time - dernier_gmail >= config.GMAIL_INTERVAL_MIN * 60:
+            dernier_gmail = loop_time
+            try:
+                await gmail.run()
+            except Exception:
+                log.exception("Gmail : échec")
+        await asyncio.sleep(60)
 
 
 app = FastAPI(title="Mint Health Sync", lifespan=lifespan)
 app.include_router(memos.router)
+app.include_router(conso.router)
+app.include_router(conso.ingest_router)
+
+
+@app.post("/conso/gmail/sync")
+async def conso_gmail_sync():
+    return await gmail.run()
 
 
 def _page(title: str, body: str) -> HTMLResponse:

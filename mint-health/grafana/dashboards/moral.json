@@ -1,0 +1,652 @@
+{
+ "uid": "moral",
+ "title": "Moral et conso",
+ "tags": [
+  "santé",
+  "perso"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": true,
+ "time": {
+  "from": "now-90d",
+  "to": "now"
+ },
+ "refresh": "5m",
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Jours sans THC (ou équivalent)",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 0,
+    "y": 0
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "table",
+     "rawQuery": true,
+     "rawSql": "SELECT (now() AT TIME ZONE 'Europe/Paris')::date - max(day)::date AS value FROM conso_quotidien WHERE niveau_thc > 0 AND confiance = 'explicite'"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0,
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "#73BF69"
+     },
+     "noValue": "—"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   },
+   "id": 1,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "stat",
+   "title": "Indice de moral (7 j)",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 6,
+    "y": 0
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "table",
+     "rawQuery": true,
+     "rawSql": "SELECT avg(indice) AS value FROM moral_quotidien WHERE day > (now() AT TIME ZONE 'Europe/Paris')::date - 7"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0,
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "#5B8DEF"
+     },
+     "noValue": "—"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   },
+   "id": 2,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "stat",
+   "title": "Moral déclaré (7 j, sur 5)",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 12,
+    "y": 0
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "table",
+     "rawQuery": true,
+     "rawSql": "SELECT avg(moral) AS value FROM moral_quotidien WHERE day > (now() AT TIME ZONE 'Europe/Paris')::date - 7"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 1,
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "#B877D9"
+     },
+     "noValue": "—"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   },
+   "id": 3,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "stat",
+   "title": "Jours renseignés (30 j)",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 18,
+    "y": 0
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "table",
+     "rawQuery": true,
+     "rawSql": "SELECT count(*) FILTER (WHERE confiance = 'explicite') AS value FROM conso_quotidien WHERE day > (now() AT TIME ZONE 'Europe/Paris')::date - 30"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0,
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "#8AB4F8"
+     },
+     "noValue": "—"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   },
+   "id": 4,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "timeseries",
+   "title": "Indice de moral (0-100) et moral déclaré (×20)",
+   "gridPos": {
+    "h": 9,
+    "w": 24,
+    "x": 0,
+    "y": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "time_series",
+     "rawQuery": true,
+     "rawSql": "SELECT day::timestamptz AS time, indice AS \"Indice\", moral * 20 AS \"Moral déclaré\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) ORDER BY 1"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "min": 0,
+     "max": 100,
+     "custom": {
+      "lineWidth": 2,
+      "spanNulls": false,
+      "pointSize": 5,
+      "showPoints": "auto"
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Indice"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#5B8DEF"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Moral déclaré"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "#B877D9"
+        }
+       },
+       {
+        "id": "custom.drawStyle",
+        "value": "points"
+       },
+       {
+        "id": "custom.pointSize",
+        "value": 8
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "id": 5,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "state-timeline",
+   "title": "Conso par jour",
+   "gridPos": {
+    "h": 5,
+    "w": 24,
+    "x": 0,
+    "y": 13
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "time_series",
+     "rawQuery": true,
+     "rawSql": "SELECT day::timestamptz AS time, CASE WHEN confiance = 'inconnu' THEN 'inconnu' ELSE (CASE WHEN niveau_thc > 0 THEN 'THC / équivalent' WHEN niveau_max > 0 AND psychoactivite >= 1 THEN 'léger' WHEN niveau_max > 0 THEN 'non psychoactif' ELSE 'rien' END) || CASE WHEN confiance = 'deduit' THEN ' (déduit)' ELSE '' END END AS \"Conso\" FROM conso_quotidien WHERE $__timeFilter(day::timestamptz) ORDER BY 1"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "THC / équivalent": {
+         "color": "#D9534F",
+         "index": 0
+        }
+       }
+      },
+      {
+       "type": "value",
+       "options": {
+        "THC / équivalent (déduit)": {
+         "color": "rgba(217,83,79,0.45)",
+         "index": 1
+        }
+       }
+      },
+      {
+       "type": "value",
+       "options": {
+        "léger": {
+         "color": "#C9A43A",
+         "index": 2
+        }
+       }
+      },
+      {
+       "type": "value",
+       "options": {
+        "léger (déduit)": {
+         "color": "rgba(201,164,58,0.45)",
+         "index": 3
+        }
+       }
+      },
+      {
+       "type": "value",
+       "options": {
+        "non psychoactif": {
+         "color": "#4C8F6A",
+         "index": 4
+        }
+       }
+      },
+      {
+       "type": "value",
+       "options": {
+        "non psychoactif (déduit)": {
+         "color": "rgba(76,143,106,0.45)",
+         "index": 5
+        }
+       }
+      },
+      {
+       "type": "value",
+       "options": {
+        "rien": {
+         "color": "#73BF69",
+         "index": 6
+        }
+       }
+      },
+      {
+       "type": "value",
+       "options": {
+        "inconnu": {
+         "color": "#3A3F48",
+         "index": 7
+        }
+       }
+      }
+     ],
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "#3A3F48",
+        "value": null
+       }
+      ]
+     },
+     "custom": {
+      "fillOpacity": 90,
+      "lineWidth": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showValue": "never",
+    "mergeValues": true,
+    "rowHeight": 0.8,
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "id": 6,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "timeseries",
+   "title": "Niveau par substance (1 un peu · 2 moyen · 3 beaucoup)",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 18
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "time_series",
+     "rawQuery": true,
+     "rawSql": "SELECT c.day::timestamptz AS time, coalesce(s.nom, c.substance) AS metric, max(c.niveau) AS value FROM conso_jour_substance c LEFT JOIN conso_substances s ON s.code = c.substance WHERE $__timeFilter(c.day::timestamptz) GROUP BY 1, 2 ORDER BY 1"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "min": 0,
+     "max": 3,
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 70,
+      "stacking": {
+       "mode": "normal"
+      },
+      "barAlignment": 0
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "id": 7,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "timeseries",
+   "title": "Composantes de l'indice (écart à ta moyenne 30 j, en écarts-types)",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 18
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "time_series",
+     "rawQuery": true,
+     "rawSql": "SELECT day::timestamptz AS time, z_sommeil AS \"Sommeil\", z_pas AS \"Pas\", z_fc AS \"FC repos (inversée)\", z_vfc AS \"VFC\", z_conso AS \"Conso (inversée)\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) ORDER BY 1"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "min": -3,
+     "max": 3,
+     "custom": {
+      "lineWidth": 1,
+      "spanNulls": false
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "id": 8,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "table",
+   "title": "Achats détectés",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 26
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "table",
+     "rawQuery": true,
+     "rawSql": "SELECT e.at AS \"Quand\", CASE e.source WHEN 'gmail' THEN coalesce(e.detail->>'boutique', 'Gmail') WHEN 'notif' THEN 'Notification' ELSE initcap(e.source) END AS \"Source\", string_agg(coalesce(s.nom, e.substance), ', ' ORDER BY s.psychoactivite DESC) AS \"Molécules\", sum(e.grammes) AS \"Grammes\", max(e.detail->>'total') AS \"Total €\" FROM conso_events e LEFT JOIN conso_substances s ON s.code = e.substance WHERE e.kind = 'achat' AND $__timeFilter(e.at) GROUP BY e.at, e.source, e.ref, e.detail->>'boutique' ORDER BY e.at DESC LIMIT 200"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true
+   },
+   "id": 9,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  },
+  {
+   "type": "table",
+   "title": "Ce qui va avec ton moral déclaré (corrélation sur la période)",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 26
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "grafana-postgresql-datasource",
+      "uid": "healthpg"
+     },
+     "editorMode": "code",
+     "format": "table",
+     "rawQuery": true,
+     "rawSql": "SELECT 'Sommeil' AS \"Donnée\", round(corr(moral, sommeil)::numeric, 2) AS \"Corrélation\", count(*) FILTER (WHERE moral IS NOT NULL AND sommeil IS NOT NULL) AS \"Jours\" FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Pas', round(corr(moral, pas)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND pas IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'FC au repos', round(corr(moral, fc_repos)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND fc_repos IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'VFC', round(corr(moral, vfc)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND vfc IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Conso THC / équivalent', round(corr(moral, conso)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND conso IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz) UNION ALL SELECT 'Indice calculé', round(corr(moral, indice)::numeric, 2), count(*) FILTER (WHERE moral IS NOT NULL AND indice IS NOT NULL) FROM moral_quotidien WHERE $__timeFilter(day::timestamptz)"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "pas assez de jours"
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true
+   },
+   "description": "Entre -1 et 1. Proche de 0 : pas de lien visible. Il faut au moins une vingtaine de jours renseignés pour que ça veuille dire quelque chose.",
+   "id": 10,
+   "datasource": {
+    "type": "grafana-postgresql-datasource",
+    "uid": "healthpg"
+   },
+   "transparent": true
+  }
+ ],
+ "links": [
+  {
+   "title": "Google Health",
+   "type": "link",
+   "url": "/d/google-health",
+   "icon": "dashboard"
+  },
+  {
+   "title": "Saisie (Ma journée)",
+   "type": "link",
+   "url": "/api/conso/app",
+   "icon": "external link",
+   "targetBlank": true
+  }
+ ]
+}

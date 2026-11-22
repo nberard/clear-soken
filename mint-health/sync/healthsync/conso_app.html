@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16181d">
+<title>Ma journée</title>
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<link rel="icon" href="icon.svg">
+<style>
+	:root {
+		--bg: #16181d; --surface: #1f2228; --soft: #2a2e36; --line: #353a44; --text: #e6e6e6; --muted: #9aa0a9;
+		--accent: #8ab4f8; --ok: #73bf69; --warn: #f2cc0c; --bad: #e0685a;
+		--p0: #4c8f6a; --p1: #c9a43a; --p2: #e07b45; --p3: #d9534f; --none: #3a3f48;
+		color-scheme: dark;
+	}
+	* { box-sizing: border-box; }
+	[hidden] { display: none !important; }
+	html, body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+	main { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 1.1rem) 16px calc(env(safe-area-inset-bottom) + 2rem); }
+	header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+	h1 { font-size: 1.35rem; margin: 0; }
+	h2 { font-size: 1rem; margin: 0 0 .7rem; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+	a { color: var(--accent); text-decoration: none; }
+	.muted { color: var(--muted); font-size: .9rem; }
+	.card { background: var(--surface); border-radius: 20px; padding: 1.1rem 1rem; margin-bottom: 1rem; }
+	button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+	button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+	/* Compteur */
+	.streak { display: grid; grid-template-columns: auto 1fr; gap: .2rem 1rem; align-items: center; }
+	.streak .big { font-size: 4rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; grid-row: span 2; }
+	.streak .unit { font-weight: 700; }
+	.streak .since { color: var(--muted); font-size: .9rem; }
+	.hms { margin-top: .6rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+	.chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+	.chip { display: inline-flex; align-items: center; gap: .4rem; border-radius: 999px; padding: .35rem .75rem; background: var(--soft); font-size: .92rem; font-weight: 600; border: 2px solid transparent; }
+	.chip i { width: .7rem; height: .7rem; border-radius: 50%; display: inline-block; background: var(--p0); }
+	.chip[data-psy="1"] i { background: var(--p1); } .chip[data-psy="2"] i { background: var(--p2); } .chip[data-psy="3"] i { background: var(--p3); }
+	.chip small { color: var(--muted); font-weight: 500; }
+	.en-cours { margin-top: .9rem; }
+
+	.cta { width: 100%; border: none; border-radius: 18px; padding: 1.05rem; font-size: 1.1rem; font-weight: 800; background: var(--soft); margin-bottom: 1rem; }
+	.cta:active { transform: scale(.98); }
+
+	/* Question du soir */
+	.moods { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; margin-bottom: 1rem; }
+	.moods button { border: 2px solid transparent; background: var(--soft); border-radius: 14px; padding: .5rem 0 .35rem; font-size: 1.7rem; line-height: 1.1; }
+	.moods button span { display: block; font-size: .68rem; color: var(--muted); }
+	.moods button[aria-pressed="true"] { border-color: var(--accent); background: #26324a; }
+	.subs { display: grid; gap: .45rem; }
+	.sub { display: grid; gap: .45rem; background: var(--soft); border-radius: 14px; padding: .6rem .6rem .6rem .8rem; }
+	.sub .n { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.sub .n small { color: var(--muted); font-weight: 500; font-size: .78rem; margin-left: .4rem; }
+	.lv { display: grid; grid-template-columns: repeat(4, 1fr); gap: .3rem; }
+	.lv button { border: none; background: var(--bg); border-radius: 10px; height: 2.4rem; font-size: .85rem; font-weight: 700; color: var(--muted); }
+	.lv button[aria-pressed="true"] { background: var(--accent); color: #0d1520; }
+	.lv button[data-v="0"][aria-pressed="true"] { background: var(--ok); }
+	.row { display: flex; gap: .6rem; margin-top: .9rem; }
+	.primary { flex: 1; border: none; border-radius: 14px; padding: .85rem; font-weight: 800; background: var(--accent); color: #0d1520; }
+	.ghost { border: none; border-radius: 14px; padding: .85rem 1rem; font-weight: 700; background: var(--soft); }
+	.done { color: var(--ok); font-weight: 700; }
+
+	/* 30 jours */
+	.days { display: grid; grid-template-columns: repeat(10, 1fr); gap: .3rem; }
+	.day { aspect-ratio: 1; border-radius: 6px; background: var(--none); position: relative; }
+	.day[data-c="explicite"][data-p="0"] { background: var(--p0); }
+	.day[data-p="1"] { background: var(--p1); } .day[data-p="2"] { background: var(--p2); } .day[data-p="3"] { background: var(--p3); }
+	.day[data-c="deduit"] { opacity: .45; }
+	.day[data-c="deduit"][data-p="0"] { background: var(--p0); }
+	.day.today { outline: 2px solid var(--text); outline-offset: 1px; }
+	.legend { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin-top: .6rem; font-size: .78rem; color: var(--muted); }
+	.legend i { display: inline-block; width: .7rem; height: .7rem; border-radius: 3px; margin-right: .3rem; vertical-align: -1px; }
+
+	/* Feuille du bas */
+	dialog { border: none; border-radius: 22px 22px 0 0; background: var(--surface); color: var(--text); width: 100%; max-width: 560px; margin: auto auto 0; padding: 1.1rem 16px calc(env(safe-area-inset-bottom) + 1.1rem); }
+	dialog::backdrop { background: rgb(0 0 0 / .55); }
+	dialog .chips .chip { font-size: 1rem; padding: .6rem .95rem; }
+	dialog .chip[aria-pressed="true"] { border-color: var(--accent); background: #26324a; }
+	input[type="datetime-local"], input[type="time"] { font: inherit; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: .45rem .6rem; }
+	details summary { cursor: pointer; color: var(--muted); }
+	.set { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+	.set:first-of-type { border-top: none; }
+	#toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 1rem); transform: translateX(-50%); background: #2f3540; padding: .7rem 1rem; border-radius: 14px; display: flex; gap: 1rem; align-items: center; box-shadow: 0 6px 20px rgb(0 0 0 / .4); max-width: calc(100% - 32px); }
+	#toast button { background: none; border: none; color: var(--accent); font-weight: 800; }
+	.err { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+	<header>
+		<h1>Ma journée</h1>
+		<a id="grafana" href="#">Historique ↗</a>
+	</header>
+
+	<section class="card" aria-live="polite">
+		<div class="streak">
+			<div class="big" id="jours">–</div>
+			<div class="unit" id="unite">jours sans THC</div>
+			<div class="since" id="depuis">Aucune prise enregistrée</div>
+		</div>
+		<div class="hms" id="hms"></div>
+		<div class="en-cours" id="en-cours-bloc" hidden>
+			<div class="muted" style="margin-bottom:.4rem">En cours</div>
+			<div class="chips" id="en-cours"></div>
+			<div class="muted" id="commande" style="margin-top:.5rem"></div>
+		</div>
+	</section>
+
+	<button class="cta" id="btn-prise">Je viens de consommer</button>
+
+	<section class="card" id="soir">
+		<h2 id="soir-titre">Ma journée</h2>
+		<div class="moods" role="group" aria-label="Moral du jour">
+			<button data-m="1" aria-pressed="false">😞<span>très bas</span></button>
+			<button data-m="2" aria-pressed="false">🙁<span>bas</span></button>
+			<button data-m="3" aria-pressed="false">😐<span>moyen</span></button>
+			<button data-m="4" aria-pressed="false">🙂<span>bien</span></button>
+			<button data-m="5" aria-pressed="false">😄<span>très bien</span></button>
+		</div>
+		<div class="subs" id="subs"></div>
+		<div class="row">
+			<button class="ghost" id="btn-rien">Rien pris</button>
+			<button class="primary" id="btn-jour">Enregistrer</button>
+		</div>
+		<p class="muted" id="soir-statut" style="margin:.6rem 0 0"></p>
+	</section>
+
+	<section class="card">
+		<h2>30 derniers jours</h2>
+		<div class="days" id="days"></div>
+		<div class="legend">
+			<span><i style="background:var(--p0)"></i>rien / non psychoactif</span>
+			<span><i style="background:var(--p1)"></i>léger</span>
+			<span><i style="background:var(--p3)"></i>THC ou équivalent</span>
+			<span><i style="background:var(--none)"></i>inconnu</span>
+			<span><i style="background:var(--p2);opacity:.45"></i>déduit</span>
+		</div>
+	</section>
+
+	<details class="card">
+		<summary>Réglages</summary>
+		<div style="margin-top:.6rem">
+			<div class="set"><span>Notifications</span><button class="ghost" id="btn-push">Activer</button></div>
+			<div class="set"><span>Heure de la question</span><input type="time" id="heure" value="23:30"></div>
+			<div class="set"><span>Tester la notification</span><button class="ghost" id="btn-test">Envoyer</button></div>
+			<p class="muted" id="push-statut"></p>
+		</div>
+	</details>
+</main>
+
+<dialog id="sheet">
+	<h2>Qu'as-tu pris ?</h2>
+	<div class="chips" id="sheet-subs"></div>
+	<p style="margin:.9rem 0 .4rem"><a href="#" id="plus-tot">Plus tôt ?</a></p>
+	<p id="plus-tot-bloc" hidden><input type="datetime-local" id="quand"></p>
+	<div class="row">
+		<button class="ghost" id="sheet-annuler">Annuler</button>
+		<button class="primary" id="sheet-ok" disabled>Enregistrer</button>
+	</div>
+</dialog>
+
+<div id="toast" hidden><span id="toast-msg"></span><button id="toast-undo" hidden>Annuler</button></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const NIVEAUX = [['0', 'non'], ['1', 'un peu'], ['2', 'moyen'], ['3', 'bcp']];
+let E = null, moral = null, niveaux = {}, choix = null, jour = null;
+
+async function api(path, opts = {}) {
+	const r = await fetch(path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
+	if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+	return r.status === 204 ? null : r.json();
+}
+function toast(msg, undo) {
+	$('#toast-msg').textContent = msg; $('#toast').hidden = false;
+	$('#toast-undo').hidden = !undo; $('#toast-undo').onclick = async () => { $('#toast').hidden = true; await undo(); };
+	clearTimeout(toast.t); toast.t = setTimeout(() => ($('#toast').hidden = true), 6000);
+}
+const nomDe = (c) => (E.catalogue.find((s) => s.code === c) || { nom: c.toUpperCase() }).nom;
+const psyDe = (c) => (E.catalogue.find((s) => s.code === c) || { psy: 0 }).psy;
+const fmtDate = (d) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+function compteur() {
+	if (!E.derniere_prise_thc) { $('#jours').textContent = '–'; $('#hms').textContent = ''; return; }
+	const t0 = new Date(E.derniere_prise_thc), ms = Date.now() - t0;
+	const j = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60;
+	$('#jours').textContent = j;
+	$('#unite').textContent = j > 1 ? 'jours sans THC' : 'jour sans THC';
+	$('#depuis').textContent = `depuis le ${t0.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} à ${t0.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+	$('#hms').textContent = `${j} j ${h} h ${String(m).padStart(2, '0')} min`;
+}
+
+function chip(code, extra = '') {
+	const b = document.createElement('span');
+	b.className = 'chip'; b.dataset.psy = psyDe(code);
+	b.innerHTML = `<i></i>${nomDe(code)}${extra ? ` <small>${extra}</small>` : ''}`;
+	return b;
+}
+
+// Substances proposées : en cours d'abord, puis les plus courantes du catalogue
+function proposees() {
+	const vus = E.en_cours.map((s) => s.code);
+	for (const c of ['thc', 'cbd', 'cbc', 'thcx', 'hhc']) if (!vus.includes(c)) vus.push(c);
+	return vus.filter((c) => E.catalogue.some((s) => s.code === c));
+}
+
+function rendre() {
+	compteur();
+	const ec = $('#en-cours'); ec.innerHTML = '';
+	$('#en-cours-bloc').hidden = !E.en_cours.length;
+	for (const s of E.en_cours) ec.append(chip(s.code, s.kind === 'achat' ? 'achat' : ''));
+	const c = E.derniere_commande;
+	$('#commande').textContent = c ? `Dernière commande : ${fmtDate(new Date(c.at))}${c.boutique ? ' · ' + c.boutique.replace(/\.fr$/, '') : ''}` : '';
+
+	// Question du soir
+	const a = E.aujourdhui;
+	$('#soir-titre').textContent = jour === E.date ? 'Ma journée' : `Journée du ${fmtDate(new Date(jour))}`;
+	document.querySelectorAll('.moods button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.m === moral)));
+	const subs = $('#subs'); subs.innerHTML = '';
+	const liste = [...new Set([...proposees().slice(0, 5), ...Object.keys(niveaux)])];
+	for (const code of liste) {
+		const row = document.createElement('div'); row.className = 'sub';
+		const s = E.catalogue.find((x) => x.code === code) || {};
+		row.innerHTML = `<div class="n">${nomDe(code)}<small>${s.effet || ''}</small></div><div class="lv"></div>`;
+		for (const [v, label] of NIVEAUX) {
+			const b = document.createElement('button');
+			b.dataset.v = v; b.textContent = label;
+			b.setAttribute('aria-pressed', String((niveaux[code] || 0) === +v));
+			b.onclick = () => { niveaux[code] = +v; rendre(); };
+			row.querySelector('.lv').append(b);
+		}
+		subs.append(row);
+	}
+	$('#soir-statut').innerHTML = a.repondu && jour === E.date ? '<span class="done">✓ Journée enregistrée</span> (modifiable)' : '';
+
+	// 30 jours
+	const days = $('#days'); days.innerHTML = '';
+	for (const d of E.jours) {
+		const el = document.createElement('div');
+		el.className = 'day' + (d.day === E.date ? ' today' : '');
+		el.dataset.c = d.confiance;
+		el.dataset.p = d.confiance === 'inconnu' ? 'x' : (d.thc > 0 ? 3 : (d.niveau > 0 ? Math.min(d.psy, 1) : 0));
+		el.title = `${d.day} · ${d.confiance}${d.substances ? ' · ' + d.substances : ''}${d.moral ? ' · moral ' + d.moral + '/5' : ''}`;
+		days.append(el);
+	}
+	$('#heure').value = E.reglages.push_heure;
+	$('#grafana').href = E.grafana;
+	etatPush();
+}
+
+async function charger() {
+	try {
+		E = await api('etat');
+		jour = new URLSearchParams(location.search).get('jour') || E.date;
+		const a = E.aujourdhui;
+		if (jour === E.date) {
+			moral = a.moral; niveaux = { ...a.niveaux };
+			// Pas encore répondu : pré-rempli avec les prises du jour
+			if (!a.repondu) for (const p of a.prises) niveaux[p.code] = Math.min(3, (niveaux[p.code] || 0) + 1);
+		}
+		rendre();
+	}
+	catch (e) { $('#depuis').innerHTML = `<span class="err">Impossible de charger : ${e.message}</span>`; }
+}
+
+// --- Je viens de consommer ---
+function ouvrirFeuille() {
+	choix = null; $('#sheet-ok').disabled = true; $('#plus-tot-bloc').hidden = true; $('#quand').value = '';
+	const box = $('#sheet-subs'); box.innerHTML = '';
+	const codes = [...new Set([...proposees(), ...E.catalogue.map((s) => s.code)])];
+	for (const code of codes) {
+		const b = chip(code); b.setAttribute('role', 'button'); b.tabIndex = 0;
+		b.setAttribute('aria-pressed', 'false');
+		b.onclick = () => { choix = code; box.querySelectorAll('.chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); $('#sheet-ok').disabled = false; };
+		box.append(b);
+	}
+	$('#sheet').showModal();
+}
+$('#btn-prise').onclick = ouvrirFeuille;
+$('#sheet-annuler').onclick = () => $('#sheet').close();
+$('#plus-tot').onclick = (e) => { e.preventDefault(); $('#plus-tot-bloc').hidden = false; $('#quand').focus(); };
+$('#sheet-ok').onclick = async () => {
+	const body = { substance: choix };
+	if ($('#quand').value) body.at = new Date($('#quand').value).toISOString();
+	try {
+		const { id } = await api('prise', { method: 'POST', body: JSON.stringify(body) });
+		$('#sheet').close();
+		toast(`${nomDe(choix)} noté`, async () => { await api(`prise/${id}`, { method: 'DELETE' }); await charger(); });
+		await charger();
+	} catch (e) { toast('Erreur : ' + e.message); }
+};
+
+// --- Question du soir ---
+document.querySelectorAll('.moods button').forEach((b) => (b.onclick = () => { moral = +b.dataset.m; rendre(); }));
+async function enregistrerJour(rien) {
+	if (!moral) { $('#soir-statut').innerHTML = '<span class="err">Choisis d\'abord ton moral.</span>'; return; }
+	const n = rien ? {} : Object.fromEntries(Object.entries(niveaux).filter(([, v]) => v > 0));
+	try {
+		await api('jour', { method: 'POST', body: JSON.stringify({ day: jour, moral, niveaux: n }) });
+		if (rien) niveaux = {};
+		await charger();
+		toast('Journée enregistrée');
+	} catch (e) { toast('Erreur : ' + e.message); }
+}
+$('#btn-jour').onclick = () => enregistrerJour(false);
+$('#btn-rien').onclick = () => enregistrerJour(true);
+
+// --- Notifications ---
+const b64 = (s) => Uint8Array.from(atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+async function registration() {
+	if (!('serviceWorker' in navigator)) return null;
+	return navigator.serviceWorker.register('sw.js', { scope: './' });
+}
+async function etatPush() {
+	const st = $('#push-statut'), btn = $('#btn-push');
+	if (!('PushManager' in window)) { st.textContent = 'Notifications non disponibles : installe la page sur l\'écran d\'accueil.'; btn.disabled = true; return; }
+	const reg = await registration();
+	const sub = reg && await reg.pushManager.getSubscription();
+	btn.textContent = sub ? 'Désactiver' : 'Activer';
+	st.textContent = sub ? `Activées · question chaque jour à ${E.reglages.push_heure.replace(':', ' h ')}` : (Notification.permission === 'denied' ? 'Bloquées dans les réglages du navigateur.' : '');
+}
+$('#btn-push').onclick = async () => {
+	try {
+		const reg = await registration();
+		const sub = await reg.pushManager.getSubscription();
+		if (sub) {
+			await api('push/desabonnement', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
+			await sub.unsubscribe();
+		} else {
+			if (await Notification.requestPermission() !== 'granted') return etatPush();
+			if (!E.push.cle_publique) throw new Error('clé du serveur absente');
+			const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(E.push.cle_publique) });
+			await api('push/abonnement', { method: 'POST', body: JSON.stringify(s.toJSON()) });
+			await api('reglages', { method: 'PUT', body: JSON.stringify({ push_actif: true }) });
+		}
+		await charger();
+	} catch (e) { $('#push-statut').innerHTML = `<span class="err">${e.message}</span>`; }
+};
+$('#heure').onchange = async (e) => {
+	try { E.reglages = await api('reglages', { method: 'PUT', body: JSON.stringify({ push_heure: e.target.value }) }); toast(`Question à ${e.target.value}`); etatPush(); }
+	catch (err) { toast('Erreur : ' + err.message); }
+};
+$('#btn-test').onclick = async () => {
+	try { const r = await api('push/test', { method: 'POST' }); toast(r.envoyes ? 'Notification envoyée' : 'Aucun appareil abonné'); }
+	catch (e) { toast('Erreur : ' + e.message); }
+};
+
+charger().then(() => { if (new URLSearchParams(location.search).get('prise')) ouvrirFeuille(); });
+setInterval(() => E && compteur(), 30000);
+</script>
+</body>
+</html>

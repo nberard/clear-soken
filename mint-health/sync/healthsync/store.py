@@ -70,8 +70,9 @@ def _views_sql(priority: list[str], tz: str = "Europe/Paris") -> str:
     prio = f"CASE {{t}}.source {cases} ELSE 99 END"
     tz_safe = tz if all(c.isalnum() or c in "/_-+" for c in tz) else "UTC"
     return f"""
-DROP VIEW IF EXISTS daily_best;
-DROP VIEW IF EXISTS sleep_best;
+-- CASCADE : les vues qui en dépendent (moral_quotidien) sont recréées juste après par conso.init()
+DROP VIEW IF EXISTS daily_best CASCADE;
+DROP VIEW IF EXISTS sleep_best CASCADE;
 CREATE VIEW daily_best AS
     SELECT DISTINCT ON (day, metric) day, metric, value, source, updated_at
     FROM daily_metrics m

@@ -37,6 +37,25 @@ ROLLUP_TYPES = [
 ]
 SYNC_SLEEP = _env("SYNC_SLEEP", "true").lower() == "true"
 
+# --- Conso et moral (conso.py) ---
+# Achats lus dans Gmail : ajoute le scope gmail.readonly (reconnecter le compte après activation).
+GMAIL_SYNC = _env("GMAIL_SYNC", "false").lower() == "true"
+if GMAIL_SYNC:
+    SCOPES.append("https://www.googleapis.com/auth/gmail.readonly")
+# Boutiques suivies, séparées par des virgules ; « :cbd » = molécule par défaut si le mail est illisible.
+CONSO_BOUTIQUES = [b.split(":")[0].strip() for b in _env("CONSO_BOUTIQUES", "").split(",") if b.strip()]
+_doms = " ".join(f"from:{d} to:{d}" for d in CONSO_BOUTIQUES)
+GMAIL_QUERY = _env("GMAIL_QUERY", f"{{{_doms}}} subject:(commande OR order) -from:news" if _doms else "")
+GMAIL_INTERVAL_MIN = int(_env("GMAIL_INTERVAL_MIN", "60"))
+# Jeton des envois MacroDroid (notifications) et du script d'import WhatsApp. Vide = désactivé.
+CONSO_INGEST_TOKEN = _env("CONSO_INGEST_TOKEN", "")
+# Applications dont les notifications sont analysées (sous-chaîne du nom ou du paquet). Vide = toutes.
+CONSO_NOTIF_APPS = [a.strip().lower() for a in _env("CONSO_NOTIF_APPS", "whatsapp").split(",") if a.strip()]
+VAPID_FILE = _env("VAPID_FILE", "/data/vapid.json")
+VAPID_SUB = _env("VAPID_SUB", "")
+# Lien « Tableau de bord » de la page Ma journée (relatif à /health/api/conso/app sur le serveur)
+GRAFANA_MORAL_URL = _env("GRAFANA_MORAL_URL", "../../d/moral")
+
 DATABASE_URL = _env("DATABASE_URL", "postgresql://health:health@db:5432/health")
 TOKEN_FILE = _env("TOKEN_FILE", "/data/token.json")
 

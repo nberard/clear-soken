@@ -3,7 +3,7 @@ IMAGE  ?= ghcr.io/nberard/clear-soken
 TAG    ?= latest
 export TAG
 
-.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton admin-cle claude-jeton
+.PHONY: dev-api dev-web test proxy deploy update build-local restart logs qr push health-deploy health-proxy health-logs health-takeout health-conso-whatsapp memoire-deploy memoire-proxy memoire-import memoire-traiter memoire-logs rapports-proxy rapports-nouveau-lien rapports-lien rapports-qr proxy-check portal-proxy portal-update ref-deploy ref-proxy ref-logs ref-backup centres centres-auto compte compte-roles compte-supprimer comptes compte-jeton admin-cle claude-jeton
 
 dev-api:          ## API Rust sur :8080
 	cd backend && cargo run
@@ -139,6 +139,10 @@ health-takeout:   ## importe l'historique Google Fit d'un export Takeout : make 
 	@[ -n "$(TAKEOUT)" ] || { echo "Indique le dossier des zips : make health-takeout TAKEOUT=~/takeout"; exit 1; }
 	@[ -d "$(TAKEOUT_DIR)" ] || { echo "Dossier introuvable : $(TAKEOUT_DIR)"; exit 1; }
 	$(HEALTH_COMPOSE) run --rm --no-deps --user "$$(id -u):$$(id -g)" -v "$(TAKEOUT_DIR):/takeout:ro" sync python -m healthsync.takeout /takeout $(if $(ESSAI),--essai)
+
+health-conso-whatsapp: ## historique de conso depuis les exports WhatsApp, sur le PC : make health-conso-whatsapp DIR=~/imports/whatsapp MOI="Ton nom" [ESSAI=1]
+	@[ -n "$(DIR)" ] || { echo "Indique le dossier des exports : make health-conso-whatsapp DIR=~/imports/whatsapp MOI=\"Ton nom\""; exit 1; }
+	python3 mint-health/sync/healthsync/whatsapp_import.py "$(abspath $(patsubst ~%,$(HOME)%,$(DIR)))" $(if $(MOI),--moi "$(MOI)") $(if $(ESSAI),--essai)
 
 health-logs:
 	$(HEALTH_COMPOSE) logs -f --tail=100

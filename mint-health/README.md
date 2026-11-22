@@ -214,6 +214,49 @@ Exemple : `curl -X POST -H 'Content-Type: audio/ogg' --data-binary @memo.ogg 'lo
 
 **Sur le serveur**, après la mise à jour : `make health-deploy && make health-proxy` (la configuration Caddy ajoute les routes `/memos`).
 
+## Ma journée : conso et moral
+
+Remplace une appli de type « jours sans THC » : rien à configurer, la substance en cours est déduite
+des achats, et chaque soir une notification pose deux questions (moral 1-5, conso du jour).
+
+**Page téléphone** : `https://HEALTH_HOST/health/api/conso/app` → menu ⋮ → **Ajouter à l'écran d'accueil**,
+puis **Réglages → Notifications → Activer**. Heure de la question réglable (23 h 30 par défaut).
+
+| Élément | Rôle |
+|---|---|
+| Compteur | « jours sans THC » depuis la dernière prise de THC **ou équivalent** (THC-X, THCP, HHC, HPX…), calculé à partir de tes saisies |
+| Je viens de consommer | enregistre l'heure exacte (« Plus tôt ? » pour une prise passée, ex. reprendre le compteur d'une autre appli) |
+| Ma journée | moral 1-5 + niveau par substance ; **prime toujours** sur ce qui a été déduit |
+| 30 derniers jours | rouge = THC/équivalent, jaune = léger, vert = rien/non psychoactif, gris = inconnu, pâle = déduit |
+
+**Catalogue des molécules** (table `conso_substances`, modifiable) : psychoactivité 0-3. HPX, X2 et THC-X
+sont marqués « à confirmer » (compositions non publiées). Une boutique légale ne vendant pas de THC delta-9,
+« THC » dans un produit de boutique compte comme THC-X.
+
+### Détection automatique (confiance « déduit »)
+
+- **Gmail** : `GMAIL_SYNC=true` dans `.env`, active **Gmail API** et le scope `gmail.readonly` dans Google
+  Cloud (écran de consentement), `make health-deploy`, puis reconnecte le compte. Toutes les heures, les
+  confirmations de commande des boutiques listées dans `CONSO_BOUTIQUES` sont lues depuis 2020 : date, produits,
+  grammes, molécules. Un achat en boutique vaut 14 jours de conso déduite (`achat_jours`).
+- **WhatsApp en continu (MacroDroid)** : macro « Notification reçue » (WhatsApp, contacts choisis) →
+  action « Requête HTTP » `POST https://HEALTH_HOST/health/api/ingest/notification`, en-tête
+  `Authorization: Bearer <CONSO_INGEST_TOKEN>`, corps JSON :
+  `{"app": "[not_app_name]", "titre": "[not_title]", "texte": "[notification]"}`.
+  Rien n'est gardé sans mention détectée ; sinon seulement date, molécule et mots repérés (jamais le texte).
+  Un achat « de rue » vaut 3 jours déduits (`achat_rue_jours`).
+- **Historique WhatsApp (sur le PC)** : `make health-conso-whatsapp DIR=~/imports/whatsapp MOI="Ton nom" ESSAI=1`
+  pour voir le résumé par mois, puis sans `ESSAI` pour envoyer. Le texte ne quitte pas le PC ; il faut
+  `HEALTH_HOST` et `CONSO_INGEST_TOKEN` dans `mint-health/.env` (ou `HEALTH_URL` / `CONSO_INGEST_TOKEN` en variables).
+
+### Indice de moral (dashboard « Moral et conso »)
+
+Chaque jour, sommeil, pas, VFC (vers le haut = mieux), FC au repos et conso psychoactive (vers le bas = mieux)
+sont comparés à **ta moyenne des 30 jours précédents** ; l'indice (0-100, 50 = jour habituel) est leur moyenne.
+Le tableau « Ce qui va avec ton moral déclaré » montre, sur la période, ce qui suit vraiment tes notes 1-5 :
+après quelques semaines de réponses, il dira quelles données pondérer davantage. Repère personnel, pas un
+outil médical.
+
 ## Données et dashboard
 
 | Table | Contenu |

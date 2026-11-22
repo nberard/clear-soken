@@ -34,9 +34,9 @@
 	redir / /health/
 	redir /health /health/
 
-	# Service de synchro : uniquement ses routes (dont le journal vocal /memos). Tout le reste de /health/api/*
+	# Service de synchro : uniquement ses routes (dont le journal vocal /memos et « Ma journée » /conso). Tout le reste de /health/api/*
 	# appartient à Grafana (son API interne : /api/dashboards, /api/folders…).
-	@sync path /health/api/auth/start /health/api/auth/callback /health/api/auth/logout /health/api/status /health/api/sync /health/api/healthz /health/api/memos /health/api/memos/*
+	@sync path /health/api/auth/start /health/api/auth/callback /health/api/auth/logout /health/api/status /health/api/sync /health/api/healthz /health/api/memos /health/api/memos/* /health/api/conso /health/api/conso/*
 	handle @sync {
 		request_body {
 			max_size 100MB
@@ -49,7 +49,7 @@
 	@grafana {
 		path /health/*
 		not path /health/api/ingest/*
-		not path /health/api/auth/start /health/api/auth/callback /health/api/auth/logout /health/api/status /health/api/sync /health/api/healthz /health/api/memos /health/api/memos/*
+		not path /health/api/auth/start /health/api/auth/callback /health/api/auth/logout /health/api/status /health/api/sync /health/api/healthz /health/api/memos /health/api/memos/* /health/api/conso /health/api/conso/*
 	}
 	handle @grafana {
 		reverse_proxy mint-health-grafana:3000
