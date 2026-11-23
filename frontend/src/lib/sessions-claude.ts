@@ -70,14 +70,46 @@ function texteDe(s: SessionClaude): string {
 	);
 }
 
+export type Tri = 'priorite' | 'recentes';
+
 export type Filtre = {
 	recherche: string;
 	statuts: Statut[];
 	/** Seulement les sessions qui ont au moins une pièce de ce type dans mes messages */
 	piece: TypePiece | '';
+	/** Par priorité (préfixe 00, 01… puis sans préfixe, puis zz), sinon les plus récemment actives d'abord */
+	tri?: Tri;
 };
 
-/** Sessions qui correspondent au filtre, les plus récemment actives d'abord. Chaque mot doit apparaître. */
+/** Titre rangé « NN - Projet - nom » (ou « NN - nom ») : NN = priorité (00 la plus haute, zz = rangée) */
+export type TitreRange = { priorite: string | null; projet: string | null; nom: string };
+
+export function lireTitre(titre: string): TitreRange {
+	const m = /^\s*(\d{1,2}|zz)\s*-\s*(.+)$/i.exec(titre);
+	if (!m) return { priorite: null, projet: null, nom: titre };
+	const priorite = m[1].toLowerCase() === 'zz' ? 'zz' : m[1].padStart(2, '0');
+	const reste = m[2];
+	const i = reste.indexOf(' - ');
+	// Un projet est un mot court (Insta, TechGit, Data…) avant un deuxième « - »
+	if (i > 0 && i <= 20 && !/\s/.test(reste.slice(0, i).trim())) {
+		return { priorite, projet: reste.slice(0, i).trim(), nom: reste.slice(i + 3).trim() };
+	}
+	return { priorite, projet: null, nom: reste.trim() };
+}
+
+/** Rang de tri : 00, 01… puis sans préfixe, puis zz */
+function rang(s: SessionClaude): number {
+	const p = lireTitre(s.titre).priorite;
+	return p === null ? 100 : p === 'zz' ? 200 : Number(p);
+}
+
+/** Libellé du groupe de priorité d'une session (pour les intertitres) */
+export function groupePriorite(s: SessionClaude): string {
+	const p = lireTitre(s.titre).priorite;
+	return p === null ? 'Sans priorité' : p === 'zz' ? 'Rangées (zz)' : `Priorité ${p}`;
+}
+
+/** Sessions qui correspondent au filtre, triées (par priorité ou par activité). Chaque mot doit apparaître. */
 export function filtrerSessions(sessions: SessionClaude[], f: Filtre): SessionClaude[] {
 	const mots = sansAccents(f.recherche).split(/\s+/).filter(Boolean);
 	return sessions
@@ -88,7 +120,7 @@ export function filtrerSessions(sessions: SessionClaude[], f: Filtre): SessionCl
 			const t = texteDe(s);
 			return mots.every((m) => t.includes(m));
 		})
-		.sort((a, b) => b.maj_le.localeCompare(a.maj_le));
+		.sort((a, b) => (f.tri === 'priorite' ? rang(a) - rang(b) : 0) || b.maj_le.localeCompare(a.maj_le));
 }
 
 /** Mes messages qui contiennent la recherche (pour montrer où j'en ai parlé) */

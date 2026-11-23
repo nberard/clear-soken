@@ -12,9 +12,12 @@
 		entreesTrouvees,
 		extrait,
 		filtrerSessions,
+		groupePriorite,
+		lireTitre,
 		type IndexClaude,
 		type SessionClaude,
 		type Statut,
+		type Tri,
 		type TypePiece
 	} from '#lib/sessions-claude.ts';
 
@@ -23,10 +26,11 @@
 	let recherche = $state('');
 	let statuts: Statut[] = $state([]);
 	let piece: TypePiece | '' = $state('');
+	let tri: Tri = $state('priorite');
 	let ouverte: string | null = $state(null);
 	let affiches = $state(30);
 
-	const trouvees = $derived(filtrerSessions(index.sessions, { recherche, statuts, piece }));
+	const trouvees = $derived(filtrerSessions(index.sessions, { recherche, statuts, piece, tri }));
 
 	onMount(async () => {
 		const res = await fetch('/api/admin/claude', { credentials: 'same-origin' }).catch(() => null);
@@ -86,6 +90,10 @@
 				<option value="">Toutes les pièces</option>
 				{#each ['image', 'son', 'video', 'document'] as t (t)}<option value={t}>{ICONES[t as TypePiece]} {t === 'video' ? 'vidéo' : t}</option>{/each}
 			</select>
+			<select bind:value={tri} aria-label="Trier">
+				<option value="priorite">Par priorité</option>
+				<option value="recentes">Activité récente</option>
+			</select>
 		</div>
 		<div class="puces">
 			{#each STATUTS as s (s)}
@@ -95,11 +103,17 @@
 		<p class="soft petit">{trouvees.length} session{trouvees.length > 1 ? 's' : ''}</p>
 
 		<ul class="sessions">
-			{#each trouvees.slice(0, affiches) as s (s.id)}
+			{#each trouvees.slice(0, affiches) as s, i (s.id)}
 				{@const messages = entreesTrouvees(s, recherche)}
+				{@const t = lireTitre(s.titre)}
+				{#if tri === 'priorite' && (i === 0 || groupePriorite(trouvees[i - 1]) !== groupePriorite(s))}
+					<li class="groupe"><h2>{groupePriorite(s)}</h2></li>
+				{/if}
 				<li class="card">
 					<div class="tete">
-						<a class="titre" href={s.url} target="_blank" rel="noopener noreferrer">{s.titre}</a>
+						{#if t.priorite}<span class="prio" class:range={t.priorite === 'zz'}>{t.priorite}</span>{/if}
+						{#if t.projet}<span class="projet">{t.projet}</span>{/if}
+						<a class="titre" href={s.url} target="_blank" rel="noopener noreferrer">{t.nom}</a>
 						<span class="badge {classeStatut(s.statut)}">{s.statut}</span>
 					</div>
 					<p class="soft petit">
@@ -184,6 +198,11 @@
 	.sessions > li { display: grid; gap: 0.35rem; min-width: 0; }
 	.tete { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 	.titre { font-weight: 700; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+	.groupe { list-style: none; margin-top: 0.4rem; }
+	.groupe h2 { font-size: 0.95rem; margin: 0; color: var(--text-soft); }
+	.prio { font-weight: 800; font-variant-numeric: tabular-nums; background: var(--primary); color: #fff; border-radius: 6px; padding: 0 0.4rem; font-size: 0.85rem; }
+	.prio.range { background: var(--surface-soft); color: var(--text-soft); }
+	.projet { font-size: 0.75rem; border: 1px solid var(--border); border-radius: 999px; padding: 0.05rem 0.5rem; }
 	.badge { font-size: 0.72rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 700; background: var(--surface-soft); }
 	.badge.attente { background: #f6c34a; color: #3a2a00; }
 	.badge.cours { background: var(--primary); color: #fff; }
