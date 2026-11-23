@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
 	compterPieces,
+	groupePriorite,
+	lireTitre,
 	compterSorties,
 	entreesTrouvees,
 	extrait,
@@ -75,4 +77,23 @@ test('messages trouvés, comptes et extraits', () => {
 	const e = extrait(long, 'spotify', 60);
 	assert.ok(e.includes('Spotify') && e.startsWith('…') && e.endsWith('…'));
 	assert.equal(extrait('court', 'x'), 'court');
+});
+
+test('titres rangés « NN - Projet - nom » et tri par priorité', () => {
+	assert.deepEqual(lireTitre('02 - Insta - Clearsoken admin analytics dashboard'), { priorite: '02', projet: 'Insta', nom: 'Clearsoken admin analytics dashboard' });
+	assert.deepEqual(lireTitre('00 - Admin sys linux'), { priorite: '00', projet: null, nom: 'Admin sys linux' });
+	assert.deepEqual(lireTitre('zz - TechGit - REF.touplitoui.me'), { priorite: 'zz', projet: 'TechGit', nom: 'REF.touplitoui.me' });
+	assert.deepEqual(lireTitre('MCP'), { priorite: null, projet: null, nom: 'MCP' });
+	const ss = [
+		session('session_a', { titre: 'zz - TechGit - vieux', maj_le: '2026-11-20T00:00:00Z' }),
+		session('session_b', { titre: 'Sans préfixe', maj_le: '2026-11-21T00:00:00Z' }),
+		session('session_c', { titre: '03 - Youtube - clip', maj_le: '2026-11-22T00:00:00Z' }),
+		session('session_d', { titre: '00 - Linux - admin', maj_le: '2026-11-01T00:00:00Z' }),
+		session('session_e', { titre: '03 - TechGit - portail', maj_le: '2026-11-23T00:00:00Z' })
+	];
+	const f = { recherche: '', statuts: [], piece: '' as const };
+	assert.deepEqual(filtrerSessions(ss, { ...f, tri: 'priorite' }).map((s) => s.id), ['session_d', 'session_e', 'session_c', 'session_b', 'session_a']);
+	assert.deepEqual(filtrerSessions(ss, { ...f, tri: 'recentes' }).map((s) => s.id), ['session_e', 'session_c', 'session_b', 'session_a', 'session_d']);
+	assert.equal(groupePriorite(ss[3]), 'Priorité 00');
+	assert.equal(groupePriorite(ss[0]), 'Rangées (zz)');
 });

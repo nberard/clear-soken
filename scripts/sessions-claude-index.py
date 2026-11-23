@@ -123,6 +123,11 @@ def analyser(evts: list[dict]) -> tuple[list[dict], dict, set[str]]:
                 elif b.get("type") in ("image", "document"):
                     mt = (b.get("source") or {}).get("media_type", "")
                     pieces.append({"nom": b.get("title") or f"{b['type']} ({mt or 'jointe'})", "type": type_de("", mt) if mt else b["type"]})
+            # Fichiers envoyés depuis l'appli (photos, audio, vidéos, documents) : nom et type seulement
+            for fa in cat.get("file_attachments") or []:
+                nom = fa.get("file_name") or "fichier"
+                mt = fa.get("mime_type") or ("image/" if fa.get("is_image") else "")
+                pieces.append({"nom": nom, "type": type_de(nom, mt)})
             texte = "\n".join(textes).strip()
             if texte.startswith("<") and ("command-name>" in texte[:200] or "system-reminder" in texte[:200]):
                 continue  # messages techniques de l'interface, pas les miens
