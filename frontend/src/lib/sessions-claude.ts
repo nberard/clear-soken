@@ -136,13 +136,13 @@ export function entreesTrouvees(s: SessionClaude, recherche: string): Entree[] {
 /** Nombre de pièces par type dans mes messages */
 export function compterPieces(s: SessionClaude): Partial<Record<TypePiece, number>> {
 	const n: Partial<Record<TypePiece, number>> = {};
-	for (const e of s.entrees) for (const p of e.pieces) n[p.type] = (n[p.type] ?? 0) + 1;
+	for (const e of s.entrees ?? []) for (const p of e.pieces ?? []) n[p.type] = (n[p.type] ?? 0) + 1;
 	return n;
 }
 
 export function compterSorties(s: SessionClaude): number {
 	const o = s.sorties;
-	return o.prs.length + o.artifacts.length + o.fichiers.length + o.commits.length;
+	return (o?.prs?.length ?? 0) + (o?.artifacts?.length ?? 0) + (o?.fichiers?.length ?? 0) + (o?.commits?.length ?? 0);
 }
 
 export function dateCourte(iso: string | null | undefined): string {

@@ -137,16 +137,16 @@
 
 					{#if ouverte === s.id}
 						<div class="details">
-							{#if s.depots.length}<p class="petit"><strong>Dépôts :</strong> {s.depots.join(', ')}</p>{/if}
-							{#if s.branches.length}<p class="petit"><strong>Branches :</strong> {s.branches.join(', ')}</p>{/if}
+							{#if s.depots?.length}<p class="petit"><strong>Dépôts :</strong> {s.depots.join(', ')}</p>{/if}
+							{#if s.branches?.length}<p class="petit"><strong>Branches :</strong> {s.branches.join(', ')}</p>{/if}
 
-							<h3>Entrées ({s.entrees.length})</h3>
+							<h3>Entrées ({s.entrees?.length ?? 0})</h3>
 							<ol class="entrees">
-								{#each s.entrees as e, i (e.le + i)}
+								{#each s.entrees ?? [] as e, i (i)}
 									<li>
 										<span class="soft petit">{dateHeure(e.le)}</span>
 										{#if e.texte}<p class="texte">{extrait(e.texte, recherche, 600)}</p>{/if}
-										{#each e.pieces as p (p.nom)}<span class="piece">{ICONES[p.type]} {p.nom}</span>{/each}
+										{#each e.pieces ?? [] as p, j (j)}<span class="piece">{ICONES[p.type]} {p.nom}</span>{/each}
 									</li>
 								{/each}
 							</ol>
@@ -154,17 +154,17 @@
 							<h3>Sorties ({compterSorties(s)})</h3>
 							{#if !compterSorties(s)}<p class="soft petit">Aucune PR, artifact ni fichier repéré.</p>{/if}
 							<ul class="sorties">
-								{#each s.sorties.prs as p (p.url)}
+								{#each s.sorties?.prs ?? [] as p, j (j)}
 									<li>🔀 <a href={p.url} target="_blank" rel="noopener noreferrer">{nomPr(p.url)}</a>{#if p.titre} · {p.titre}{/if}</li>
 								{/each}
-								{#each s.sorties.artifacts as a (a.url)}
+								{#each s.sorties?.artifacts ?? [] as a, j (j)}
 									<li>✨ <a href={a.url} target="_blank" rel="noopener noreferrer">{a.titre}</a></li>
 								{/each}
-								{#each s.sorties.fichiers as f, i (f.nom + i)}
+								{#each s.sorties?.fichiers ?? [] as f, j (j)}
 									<li>📦 {f.nom}{#if f.legende} · <span class="soft">{f.legende}</span>{/if}</li>
 								{/each}
-								{#each s.sorties.commits as c (c.sha)}
-									<li>💾 <code>{c.sha.slice(0, 7)}</code> {c.message}{#if c.depot} <span class="soft">({c.depot})</span>{/if}</li>
+								{#each s.sorties?.commits ?? [] as c, j (j)}
+									<li>💾 <code>{(c.sha ?? '').slice(0, 7)}</code> {c.message}{#if c.depot} <span class="soft">({c.depot})</span>{/if}</li>
 								{/each}
 							</ul>
 						</div>
