@@ -271,6 +271,7 @@
 		{#if etat === 'ouvert'}
 			<div class="moi">
 				<span class="soft">{moi}</span>
+				<a class="lien" href="/admin/opportunites/">Opportunités</a>
 				<a class="lien" href="/admin/sessions/">Sessions Claude</a>
 				<button class="lien" onclick={seDeconnecter}>Déconnexion</button>
 			</div>

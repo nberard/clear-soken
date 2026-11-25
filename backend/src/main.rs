@@ -10,6 +10,7 @@ mod admin;
 mod sessions_claude;
 mod bigquery;
 mod comptes;
+pub mod opportunites;
 mod pricing;
 mod verdicts;
 
@@ -57,6 +58,8 @@ pub struct AppState {
     pub admin: Option<Arc<Admin>>,
     /// Index des sessions Claude Code affiché dans l'espace admin (voir sessions_claude.rs)
     pub claude: Arc<sessions_claude::IndexClaude>,
+    /// Opportunités pro relevées dans Gmail par une session Claude (voir opportunites.rs)
+    pub opportunites: Arc<opportunites::Opportunites>,
 }
 
 pub struct Config {
@@ -244,6 +247,7 @@ async fn main() {
         comptes_jeton: env::var("COMPTES_JETON").ok().filter(|j| j.len() >= 32).map(Into::into),
         admin: admin::depuis_env().map(Arc::new),
         claude: Arc::new(sessions_claude::IndexClaude::depuis_env()),
+        opportunites: Arc::new(opportunites::Opportunites::depuis_env()),
     };
     if !state.claude.import_ouvert() {
         tracing::info!("CLAUDE_INDEX_JETON absent (ou moins de 32 caractères) : import des sessions Claude fermé");
@@ -297,6 +301,10 @@ mod tests {
                 admin: admin.map(Arc::new),
                 claude: Arc::new(sessions_claude::IndexClaude::new(
                     std::env::temp_dir().join(format!("claude-index-{}.json", std::process::id())),
+                    Some(JETON.into()),
+                )),
+                opportunites: Arc::new(opportunites::Opportunites::new(
+                    std::env::temp_dir().join(format!("opportunites-api-{}", std::process::id())).join("opportunites.json"),
                     Some(JETON.into()),
                 )),
             },
@@ -430,6 +438,53 @@ mod tests {
         assert_eq!(res.headers()["cache-control"], "no-store");
         let corps: serde_json::Value = serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(corps["sessions"][0]["titre"], "Music video");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn opportunites_gmail() {
+        let dir = std::env::temp_dir().join(format!("opportunites-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("comptes.json");
+        comptes::ecrire(
+            &file,
+            &[comptes::Compte { nom: "nico".into(), hash: comptes::hacher("motdepasse"), roles: vec!["admin".into()] }],
+        )
+        .unwrap();
+        let app = test_app_admin(file, Some(Admin::new(admin::Source::Fichiers(dir.clone()))));
+        let post = |uri: &str, auth: Option<String>, cookie: &str, corps: &str| {
+            let mut r = Request::post(uri.to_owned()).header("content-type", "application/json").header("cookie", cookie);
+            if let Some(a) = auth {
+                r = r.header("authorization", a);
+            }
+            r.body(Body::from(corps.to_owned())).unwrap()
+        };
+        let releve = r#"{"genere_le":"2026-11-25T12:00:00Z","mails":[{"id":"1a154f1506d3027b","le":"2026-10-19T16:14:20Z","sujet":"Senior Backend Engineer @WeWard","expediteur":"kevin@hiresweet.com"}]}"#;
+        let imp = |j: &str| post("/api/admin/opportunites/import", Some(format!("Bearer {j}")), "", releve);
+        assert_eq!(app.clone().oneshot(imp("pas-le-bon")).await.unwrap().status(), 403);
+        assert_eq!(app.clone().oneshot(imp(JETON)).await.unwrap().status(), 204);
+
+        let lire = |c: &str| Request::get("/api/admin/opportunites").header("cookie", c).body(Body::empty()).unwrap();
+        assert_eq!(app.clone().oneshot(lire("")).await.unwrap().status(), 401);
+        let res = app
+            .clone()
+            .oneshot(post("/api/admin/connexion", None, "", r#"{"nom":"nico","mot_de_passe":"motdepasse"}"#))
+            .await
+            .unwrap();
+        let cookie = res.headers()["set-cookie"].to_str().unwrap().split(';').next().unwrap().to_owned();
+
+        let suivi = |c: &str, corps: &str| post("/api/admin/opportunites/suivi", None, c, corps);
+        let ok = r#"{"id":"1a154f1506d3027b","statut":"a_creuser","note":"Python, 90-100K"}"#;
+        assert_eq!(app.clone().oneshot(suivi("", ok)).await.unwrap().status(), 401);
+        assert_eq!(app.clone().oneshot(suivi(&cookie, r#"{"id":"1a","statut":"peut-etre"}"#)).await.unwrap().status(), 400);
+        assert_eq!(app.clone().oneshot(suivi(&cookie, ok)).await.unwrap().status(), 204);
+
+        let res = app.oneshot(lire(&cookie)).await.unwrap();
+        assert_eq!(res.status(), 200);
+        assert_eq!(res.headers()["cache-control"], "no-store");
+        let corps: serde_json::Value = serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(corps["releve"]["mails"][0]["expediteur"], "kevin@hiresweet.com");
+        assert_eq!(corps["suivi"]["1a154f1506d3027b"]["statut"], "a_creuser");
         std::fs::remove_dir_all(&dir).ok();
     }
 

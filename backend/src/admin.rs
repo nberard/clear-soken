@@ -238,6 +238,8 @@ pub fn routes() -> Router<AppState> {
         .route("/verdicts", get(lire_verdicts).post(poser_verdict))
         // Index des sessions Claude Code, voir sessions_claude.rs
         .merge(crate::sessions_claude::routes())
+        // Opportunités pro relevées dans Gmail, voir opportunites.rs
+        .merge(crate::opportunites::routes())
         // Rien de l'admin ne doit rester dans un cache (navigateur, service worker, proxy)
         .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-store")))
 }
