@@ -229,6 +229,23 @@ Mise en place : `git pull && make deploy && make claude-jeton`, puis donner le j
 observateur par son formulaire sécurisé. L'index est gardé dans `sessions_claude.json`, à côté des comptes (volume
 Docker `comptes`), jamais dans git.
 
+### Opportunités (`/admin/opportunites/`)
+
+Les mails de ma recherche d'emploi triés pour moi : chaque mail est classé en **contact recruteur**, **alerte**
+automatique (LinkedIn, Jobgether…), **démarche** (France Travail, formation) ou autre. Pour les recruteurs, un niveau de
+**sérieux** (sérieux, à creuser, vague) d'après des indices visibles : salaire annoncé, poste précis, stack détaillée,
+relance, recruteur interne (+) ou approche générique, ESN (−). La **localisation** est tirée du sujet et du texte, et
+la **fraîcheur** de la date (contact direct : frais jusqu'à 3 semaines, périmé après 2 mois ; alerte : 10 et
+30 jours). Les alertes répétées pour la même offre sont regroupées. Chaque mail garde mon suivi (à creuser, contacté,
+entretien, écarté, archivé) et une note ; le titre ouvre le fil dans Gmail.
+
+Le serveur ne lit pas Gmail : une session Claude reliée à Gmail relève les mails (sujet, expéditeur, date, court
+extrait) et les envoie à `POST /api/admin/opportunites/import` avec `OPPORTUNITES_JETON` (à défaut
+`CLAUDE_INDEX_JETON`). Les règles de classement sont dans `frontend/src/lib/opportunites.ts` et s'appliquent à
+l'affichage : les corriger ne demande pas de réimport. Le relevé peut porter `zone_proche` (villes proches de chez
+moi), pour marquer les postes « proche » ou « loin ». Relevé et suivi sont gardés dans `opportunites.json` et
+`opportunites_suivi.json`, à côté des comptes, jamais dans git.
+
 ## À côté : tableau de bord santé perso (`mint-health/`)
 
 Projet séparé, sans lien avec l'appli patients : synchro de **mes** données Google Health, Grafana et applet Linux Mint, publiés sur `https://health.touplitoui.me` derrière un mot de passe. Il n'entre pas dans l'image Docker de Clear Soken (`.dockerignore`) et le site Caddy n'est activé que par `make health-proxy`. Voir [`mint-health/README.md`](mint-health/README.md).
